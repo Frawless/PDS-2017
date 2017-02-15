@@ -27,3 +27,10 @@
 *.exe
 *.out
 *.app
+
+# NBproject
+nbproject/*
+pds-intercept
+pds-spoof
+pds-scanner
+*.zip
