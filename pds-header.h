@@ -22,6 +22,7 @@ extern "C" {
 #include <ctype.h>
 #include <unistd.h>
 #include <time.h>
+#include <getopt.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -40,6 +41,16 @@ extern "C" {
 
 #include <netinet/ip6.h>
 #include <netinet/if_ether.h>
+	
+#define ERR_VICMAC1 100
+#define ERR_VICMAC2 101
+#define ERR_VICIP1 102
+#define ERR_VICIP2 103
+#define ERR_TIME 104
+#define ERR_PROT 105
+#define ERR_COUNT 106
+#define ERR_DEF 150
+#define ERR_OK	0
 
 #ifdef __cplusplus
 }

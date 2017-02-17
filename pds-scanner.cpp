@@ -13,10 +13,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "pds-header.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
+
+#include "pds-header.h"
 
 using namespace std;    // Or using std::string
 typedef std::string NetError;
@@ -41,7 +42,6 @@ typedef struct{
 PARAMS getParams (int argc, char *argv[], PARAMS params)
 {
 	int c;
-
 	//ověření správnosti a počtu argumentů
 	//FUNKČNÍ POUZE PRO JEDEN INTERFACE (-i vLan1 vLan0  nejde!!!)
 	while((c = getopt(argc,argv, "i:f:")) != -1 && argc == 5)
@@ -70,7 +70,7 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 		cerr<<"getParams() - Bad Argument Format!\nUsage: pds-scanner -i interface -f output_file"<<endl;
 
 	//kontrolní výpis pro jméno interface
-	//cerr<<argInt.interface<<endl;
+	//cerr<<params.interface<<endl;
 	
 	// vrací se struktura se zpracovanými parametry
 	return params;
