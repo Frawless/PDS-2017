@@ -17,7 +17,7 @@
 #include <fstream>
 #include <sstream>
 
-#include "pds-header.h"
+#include "pds-library.h"
 
 using namespace std;    // Or using std::string
 typedef std::string NetError;
@@ -54,7 +54,9 @@ int parseNumber (char *argument)
 /*
  * Funkce pro ověření číselnosti parametrů.
  * @param mac MAC adresa
- * Zdroj - http://stackoverflow.com/questions/4792035/how-do-you-validate-that-a-string-is-a-valid-mac-address-in-c
+ * Převzato z internetového portálu http://stackoverflow.com
+ * Zdroj: http://stackoverflow.com/questions/4792035/how-do-you-validate-that-a-string-is-a-valid-mac-address-in-c
+ * Autor: http://stackoverflow.com/users/1583/oded
  */
 int isValidMacAddress(const char* mac) {
     int i = 0;
@@ -196,6 +198,7 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 		}
 	}
 
+	// Zakomentovat v případě potřeby testování s méně argumenty
 	if(argc != 15)
 		params.ErrParam = ERR_COUNT;
 	

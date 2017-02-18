@@ -10,19 +10,22 @@
 CC = g++
 CFLAGS = -std=c++98 -Wall -pedantic -W -Wextra -O2
 LOGIN = xstejs24
-FILES = pds-intercept pds-spoof pds-scanner
+FILES = pds-intercept pds-spoof pds-scanner pds-library.o
 PACK = *.c *.h Makefile dokumentace.pdf
 
-all : pds-intercept pds-spoof pds-scanner
+%.o: %.cpp %.h
+	$(CC) $(CFLAGS) -c -o $@ $<
 
-pds-scanner: pds-scanner.cpp
-	$(CC) $(CFLAGS) -o $@ pds-scanner.cpp
+#all : pds-intercept pds-spoof pds-scanner
+
+pds-scanner: pds-scanner.o pds-library.o
+	$(CC) $(CFLAGS) -o $@ pds-scanner.o pds-library.o -lpcap
 	
-pds-spoof: pds-spoof.cpp
-	$(CC) $(CFLAGS) -o $@ pds-spoof.cpp
+pds-spoof: pds-spoof.o pds-library.o
+	$(CC) $(CFLAGS) -o $@ pds-spoof.o pds-library.o -lpcap 
 	
-pds-intercept: pds-intercept.cpp
-	$(CC) $(CFLAGS) -o $@ pds-intercept.cpp
+pds-intercept: pds-intercept.o pds-library.o
+	$(CC) $(CFLAGS) -o $@ pds-intercept.o pds-library.o -lpcap
 	
 pack: clean
 	rm -f $(LOGIN).zip

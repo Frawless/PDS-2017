@@ -17,7 +17,7 @@
 #include <fstream>
 #include <sstream>
 
-#include "pds-header.h"
+#include "pds-library.h"
 
 using namespace std;    // Or using std::string
 typedef std::string NetError;

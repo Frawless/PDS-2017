@@ -16,14 +16,15 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <pcap.h>
 
-#include "pds-header.h"
+#include "pds-library.h"
 
 using namespace std;    // Or using std::string
 typedef std::string NetError;
 
 //pcap socket deskriptor
-//pcap_t* packetDesc;
+pcap_t* packetDesc;
 
 //struktura pro jméno interface
 typedef struct{
@@ -84,9 +85,15 @@ int main(int argc, char** argv) {
 	PARAMS params = {-2,-1,"",""};
 	params = getParams(argc,argv,params);
 	
-	if(params.ErrParam != 0){
+	if(params.ErrParam != ERR_OK){
 		return (EXIT_FAILURE);
 	}
+	
+	//filtr pro ARP a NDP
+	char bpfstr[255] = "((udp) and ((dst port 520) or (dst port 521)))";	
+	
+	//návázání spojení s daným interface
+	packetDesc = openInterface(params.interface, NULL);
 	
 	return (EXIT_SUCCESS);
 }

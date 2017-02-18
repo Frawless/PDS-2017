@@ -41,6 +41,7 @@ extern "C" {
 
 #include <netinet/ip6.h>
 #include <netinet/if_ether.h>
+#include <pcap.h>
 	
 #define ERR_VICMAC1 100
 #define ERR_VICMAC2 101
@@ -51,6 +52,14 @@ extern "C" {
 #define ERR_COUNT 106
 #define ERR_DEF 150
 #define ERR_OK	0
+	
+	
+/**
+ * Funkce pro otevření požadovaného interfacu
+ * @param interface jmeno interface
+ * @param secondPar
+ **/ 
+pcap_t* openInterface(char* interface, const char* secondPar);
 
 #ifdef __cplusplus
 }
