@@ -77,6 +77,25 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 	return params;
 }
 
+/**
+ * Funkce pro ukončení snifferu
+ * @param signo
+ **/
+void terminate(int signo)
+{
+    struct pcap_stat stats;
+    if (pcap_stats(packetDesc, &stats) >= 0)
+    {
+		cerr<<"Packets received: "<<stats.ps_recv<<endl;
+		cerr<<"Packets droped: "<<stats.ps_drop<<endl;
+    }
+    //zavření spojení
+    pcap_close(packetDesc);
+	cerr<<"Signo number: "<<signo<<endl;
+	cerr<<"Func: terminate exit(0)"<<endl;	
+    exit(0);
+}
+
 /*
  * 
  */
@@ -93,7 +112,14 @@ int main(int argc, char** argv) {
 	char bpfstr[255] = "((udp) and ((dst port 520) or (dst port 521)))";	
 	
 	//návázání spojení s daným interface
-	packetDesc = openInterface(params.interface, NULL);
+	packetDesc = openInterface(params.interface, "arp");
+	
+	ARPSniffer(packetDesc, (pcap_handler)parsePacket);
+	
+	//ukončení aplikace
+	signal(SIGINT, terminate);
+	signal(SIGTERM, terminate);
+	signal(SIGQUIT, terminate);
 	
 	return (EXIT_SUCCESS);
 }

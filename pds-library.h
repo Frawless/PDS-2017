@@ -53,13 +53,26 @@ extern "C" {
 #define ERR_DEF 150
 #define ERR_OK	0
 	
-	
 /**
  * Funkce pro otevření požadovaného interfacu
  * @param interface jmeno interface
  * @param secondPar
  **/ 
 pcap_t* openInterface(char* interface, const char* secondPar);
+
+/**
+ * Funkce pro odchytávání ARP paketů
+ * @param descriptor paket deskriptor
+ **/ 
+void ARPSniffer(pcap_t* descriptor, pcap_handler func);
+
+/**
+ * Funkce pro ukončení snifferu
+ * @param signo
+ **/
+//void terminate(int signo);
+
+void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr);
 
 #ifdef __cplusplus
 }

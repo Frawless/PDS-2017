@@ -72,3 +72,25 @@ pcap_t* openInterface(char* interface, const char* secondPar)
 	return packetDesc;
 }
 
+/**
+ * Funkce pro odchytávání ARP paketů
+ * @param descriptor paket deskriptor
+ **/ 
+void ARPSniffer(pcap_t* descriptor, pcap_handler func)
+{
+	//funkce pro chytání packetů - dokud není program ukončen
+	if(pcap_loop(descriptor, 0, func, NULL) < 0)
+	{
+		cerr << "pcap_loop() failed: " << pcap_geterr(descriptor)<<endl;
+		return;
+	}
+	cerr<<"Func: capturePacket exit(succes)"<<endl;
+}
+
+
+void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
+{
+	cerr<<"Výpis paketu: ARP"<<endl;
+	cerr<<packetptr<<endl;
+}
+
