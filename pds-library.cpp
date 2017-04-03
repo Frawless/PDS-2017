@@ -219,23 +219,14 @@ u_char* getIP(char* interface)
 	/* display result */
 	printf("%s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr));
 	
-	string ratata = "100.150.21.147";
-	
 //	
-	string localAddr = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
-	string delimiter = ".";
+	char* localAddrString = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
 
-	u_char* finalAddr[4];
+	u_char finalAddr[4];
 	
-	size_t pos = 0;
-	string token;
-	while ((pos = localAddr.find(delimiter)) != std::string::npos) {
-		int i = 0;
-		strcpy(finalAddr[i],(u_char*)localAddr.substr(0, pos));
-		std::cout << finalAddr[i] << std::endl;
-		localAddr.erase(0, pos + delimiter.length());
-		i++;
-	}
+	inet_pton(AF_INET,localAddrString,&finalAddr);
+	
+	printIP(finalAddr); // FUnguje, zkrášlit, možná spojit do jedné funkce s MAC a vracet strukturu asi? Info o rozhranní, asi bude nejjednodušší
 	
 //	printIP((u_char*)ratata);
 
@@ -262,9 +253,9 @@ void printMAC(u_char * mac)
 void printIP(u_char * ip)
 {
 	cerr<<"IP adresa užívaného rozhranní:";
-	for(int i = 0; i < 4; i++)
+	for(int i = 0; i < 3; i++)
 		fprintf (stderr,"%d.", ip[i]);
-	fprintf (stderr,"%d\n", ip[4]);
+	fprintf (stderr,"%d\n", ip[3]);
 }
 
 /**
