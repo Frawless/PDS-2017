@@ -74,6 +74,12 @@ void ARPSniffer(pcap_t* descriptor, pcap_handler func);
 
 void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr);
 
+
+u_char* getMAC(char* interface);
+u_char* getIP(char* interface);
+void printMAC(u_char * mac);
+void printIP(u_char * ip);
+
 #ifdef __cplusplus
 }
 #endif

@@ -226,7 +226,6 @@ int main(int argc, char** argv) {
 	if(params.ErrParam != 0){
 		return (EXIT_FAILURE);
 	}
-	
 	return (EXIT_SUCCESS);
 }
 

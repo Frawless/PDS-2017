@@ -104,6 +104,21 @@ int main(int argc, char** argv) {
 	PARAMS params = {-2,-1,"",""};
 	params = getParams(argc,argv,params);
 	
+	uint32_t maskp;          /* subnet mask               */
+    uint32_t netp;           /* ip                        */
+	char errbuf[PCAP_ERRBUF_SIZE];
+	
+	pcap_lookupnet("wlo1",&netp,&maskp,errbuf);
+	
+	in_addr ip_addr;
+	ip_addr.s_addr = maskp;
+	
+	cerr<<inet_ntoa(ip_addr)<<endl;
+	
+//	printTest();
+	printMAC(getMAC(params.interface));
+	printIP(getIP(params.interface));
+	
 	if(params.ErrParam != ERR_OK){
 		return (EXIT_FAILURE);
 	}
