@@ -104,20 +104,32 @@ int main(int argc, char** argv) {
 	PARAMS params = {-2,-1,"",""};
 	params = getParams(argc,argv,params);
 	
-	uint32_t maskp;          /* subnet mask               */
-    uint32_t netp;           /* ip                        */
-	char errbuf[PCAP_ERRBUF_SIZE];
+	INTERFACE_INFO* intInfo = (INTERFACE_INFO*)calloc(18, sizeof(INTERFACE_INFO));			// Struktura pro potřebné adresy
+	ARP_HEADER* arpHdr = NULL;
 	
-	pcap_lookupnet("wlo1",&netp,&maskp,errbuf);
+	ssize_t sizeofARP = sizeof(ARP_HEADER);
+	ssize_t datalen = 0;
+	//vytvoření ukazatele na packet o velikosti "header" + "auth" + "ext" částí
+	u_char packetPtr[sizeof(ARP_HEADER)];
+	//ukazatel na ukazatel na packet
+	u_char *packetSize = packetPtr;
 	
-	in_addr ip_addr;
-	ip_addr.s_addr = maskp;
+//	memset(&intInfo,0,sizeof intInfo);	// Alokace paměti
 	
-	cerr<<inet_ntoa(ip_addr)<<endl;
+	struct sockaddr_in sa;
+	char str[INET_ADDRSTRLEN];
+	// store this IP address in sa:
+
 	
-//	printTest();
-	printMAC(getMAC(params.interface));
-	printIP(getIP(params.interface));
+	cerr<<"test na INFO:"<<endl;
+	getInterfaceInfo(intInfo,params.interface);
+	
+	printMAC(intInfo->interfaceMac);
+	printIP(intInfo->interfaceAdd);
+	printIP(intInfo->networkAddress);
+	printIP(intInfo->networkMask);
+	cerr<<"Počet hostů: "<<intInfo->hosts<<endl;
+
 	
 	if(params.ErrParam != ERR_OK){
 		return (EXIT_FAILURE);
@@ -128,6 +140,12 @@ int main(int argc, char** argv) {
 	
 	//návázání spojení s daným interface
 	packetDesc = openInterface(params.interface, "arp");
+	
+	std::string target = "10.0.0.38";
+	
+	packetSize = createARPv4(intInfo,arpHdr,(char *)target.c_str(),packetSize,datalen,sizeofARP);
+	
+	sendARPv4(intInfo,datalen,packetPtr, packetDesc);
 	
 	ARPSniffer(packetDesc, (pcap_handler)parsePacket);
 	
