@@ -136,10 +136,12 @@ int main(int argc, char** argv) {
 	}
 	
 	//filtr pro ARP a NDP
-	char bpfstr[255] = "((udp) and ((dst port 520) or (dst port 521)))";	
+	char bpfstr[255] = "arp";	
 	
 	//návázání spojení s daným interface
 	packetDesc = openInterface(params.interface, "arp");
+	
+	openFile(params.fileName);
 	
 	std::string target = "10.0.0.38";
 	
@@ -147,7 +149,7 @@ int main(int argc, char** argv) {
 	
 	sendARPv4(intInfo,datalen,packetPtr, packetDesc);
 	
-	ARPSniffer(packetDesc, (pcap_handler)parsePacket);
+//	ARPSniffer(intInfo,packetDesc, (pcap_handler)parsePacket);
 	
 	//ukončení aplikace
 	signal(SIGINT, terminate);

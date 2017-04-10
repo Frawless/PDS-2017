@@ -25,6 +25,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
+#include <ifaddrs.h>
 #include <arpa/inet.h>
 #include <netdb.h> 
 #include <netinet/ip.h>
@@ -84,6 +85,9 @@ typedef struct interface_info{
 	u_char networkMask[IP_ADDR_LEN];
 	u_char interfaceAdd[IP_ADDR_LEN];
 	u_char interfaceMac[ETH_ADDR_LEN];
+	char interfaceAddv6a[INET6_ADDRSTRLEN];
+	char interfaceAddv6b[INET6_ADDRSTRLEN];
+	char interfaceAddv6c[INET6_ADDRSTRLEN];
 	int hosts;
 } INTERFACE_INFO;
 
@@ -94,6 +98,9 @@ typedef struct interface_info{
  * @param secondPar
  **/ 
 pcap_t* openInterface(char* interface, const char* secondPar);
+
+
+void openFile(char* file);
 
 /**
  * Funkce pro odchytávání ARP paketů

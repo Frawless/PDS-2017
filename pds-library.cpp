@@ -31,9 +31,16 @@
 #include <linux/if_packet.h>  // struct sockaddr_ll (see man 7 packet)
 #include <net/ethernet.h>
 
+#include <unistd.h>
+
 #include <errno.h>            // errno, perror()
 
 using namespace std;
+int h = 0;
+
+
+ofstream outputFile;
+
 
 /**
  * Funkce pro otevření požadovaného interfacu
@@ -59,7 +66,7 @@ pcap_t* openInterface(char* interface, const char* secondPar)
       * @param packet read timeout
 	  * @param odložný prostor pro chybové zprávy
 	  **/
-	if((packetDesc = pcap_open_live(interface, BUFSIZ, 1, -1, errBuf)) == NULL)
+	if((packetDesc = pcap_open_live(interface, BUFSIZ, 1, 120000, errBuf)) == NULL)
 	{
 		cerr<<"Nepovedlo se připojit na interface ->"<<endl;
 		cerr<< "pcap_open_live() failed: " << errBuf << endl;
@@ -74,7 +81,7 @@ pcap_t* openInterface(char* interface, const char* secondPar)
 		return NULL;
 	}
 
-	//konverze paketu
+	// Vytvoření filtru
 	if(pcap_compile(packetDesc, &bpf, (char*)secondPar, 0, netmask))
 	{
 		cerr<<"Nepovedlo se konvertovat paket"<<endl;
@@ -82,7 +89,7 @@ pcap_t* openInterface(char* interface, const char* secondPar)
 		return NULL;
 	} 
 
-	//nastavení filtru
+	// Nastavení filtru
 	if(pcap_setfilter(packetDesc, &bpf) < 0)
 	{
 		cerr<<"Nelze nastavit filter"<<endl;
@@ -91,8 +98,19 @@ pcap_t* openInterface(char* interface, const char* secondPar)
 	}
 
 	cerr<<"Func: openInterface exit(succes)"<<endl;
+	
+	// Otevření souboru
+//	outputFile.open(interface,ios::out | ios::trunc);
+	
 	return packetDesc;
 }
+
+
+void openFile(char* file)
+{
+	outputFile.open(file,ios::out | ios::trunc);
+}
+
 
 /**
  * Funkce pro odchytávání ARP paketů
@@ -100,13 +118,27 @@ pcap_t* openInterface(char* interface, const char* secondPar)
  **/ 
 void ARPSniffer(pcap_t* descriptor, pcap_handler func)
 {
+	cerr<<"Odchytávání odpovědí..."<<endl;
+	
+	outputFile<<"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+	outputFile<<"<devices>\n";
+	
+	// Nastavení směru
+//	pcap_setdirection(descriptor,PCAP_D_IN);
+//	spcap_set_timeout(descriptor,10);
+	
 	//funkce pro chytání packetů - dokud není program ukončen
-	if(pcap_loop(descriptor, 0, func, NULL) < 0)
+	if(pcap_dispatch(descriptor, -1, func, NULL) < 0)
 	{
 		cerr << "pcap_loop() failed: " << pcap_geterr(descriptor)<<endl;
 		return;
 	}
+	
+	outputFile<<"</devices>\n";
+	outputFile.close();
+	
 	cerr<<"Func: capturePacket exit(succes)"<<endl;
+	cerr<<"Celkem paketů: "<<h<<endl;
 }
 
 /**
@@ -137,7 +169,7 @@ void getInterfaceInfo(INTERFACE_INFO* intInfo, char * interface)
 	// Kopírování MAC adresy.
 	memcpy(&intInfo->interfaceMac, ifr.ifr_hwaddr.sa_data, ETH_ADDR_LEN * sizeof (u_char));
 	
-	// Získání zdrojové IP
+	// Získání masky a adresy sítě (v4)
 	if(pcap_lookupnet(interface, &senderIP, &netmask, errBuf) < 0)
 	{
 		cerr<<"Nenalezena IP..."<<endl;
@@ -147,6 +179,9 @@ void getInterfaceInfo(INTERFACE_INFO* intInfo, char * interface)
 	
 	src_ip.s_addr = senderIP;
 	src_netmask.s_addr = netmask;
+	// Nakopírování masky a adresy sítě
+	inet_pton(AF_INET, inet_ntoa(src_ip),&intInfo->networkAddress);
+	inet_pton(AF_INET, inet_ntoa(src_netmask),&intInfo->networkMask);
 	
 	// Získání počtu hostů
 	// ##########################################################
@@ -164,20 +199,55 @@ void getInterfaceInfo(INTERFACE_INFO* intInfo, char * interface)
 //	printf("   to        %s\n",my_ntoa(broadcast-1));
 //	printf("Host count   %d\n",broadcast-network-1);
 	
-	/* I want to get an IPv4 IP address */
+	// IPv4
 	ifr.ifr_addr.sa_family = AF_INET;
-
-	/* I want IP address attached to "eth0" */
 	strncpy(ifr.ifr_name, interface, IFNAMSIZ-1);
-
 	ioctl(sd, SIOCGIFADDR, &ifr);
-	
-	// Nakopírování adress
+	// Nakopírování adresy
 	inet_pton(AF_INET,inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr),&intInfo->interfaceAdd);
-	inet_pton(AF_INET, inet_ntoa(src_ip),&intInfo->networkAddress);
-	inet_pton(AF_INET, inet_ntoa(src_netmask),&intInfo->networkMask);
-	
 	close (sd);		// Zavření socketu
+		
+	
+    struct ifaddrs * ifAddrStruct=NULL;
+    struct ifaddrs * ifa=NULL;
+    void * tmpAddrPtr=NULL;
+	int ipCount = 0;
+
+    getifaddrs(&ifAddrStruct);
+
+	// Získání adress daného interface
+    for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_addr) {
+            continue;
+        }
+		if(strcmp(ifa->ifa_name,interface) == 0)
+			{
+			// IPv4 - řešeno prozatím jinak
+//			if (ifa->ifa_addr->sa_family == AF_INET) {
+//				// is a valid IP4 Address
+//				tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+//				char addressBuffer[INET_ADDRSTRLEN];
+//				inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+//				printf("%s IP Address %s\n", ifa->ifa_name, addressBuffer); 
+//			} else 
+			// Získání IPv6 adress
+			if (ifa->ifa_addr->sa_family == AF_INET6) {
+				// is a valid IP6 Address
+				tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
+//				char addressBuffer[INET6_ADDRSTRLEN];
+//				inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
+//				printf("%s IP Address %s\n", ifa->ifa_name, addressBuffer);
+				if(ipCount == 0)
+					inet_ntop(AF_INET6, tmpAddrPtr, intInfo->interfaceAddv6a, INET6_ADDRSTRLEN);
+				else if (ipCOunt == 1)
+					inet_ntop(AF_INET6, tmpAddrPtr, intInfo->interfaceAddv6b, INET6_ADDRSTRLEN);
+				else
+					inet_ntop(AF_INET6, tmpAddrPtr, intInfo->interfaceAddv6c, INET6_ADDRSTRLEN);
+			} 			
+		}
+    }
+    if (ifAddrStruct!=NULL) 
+		freeifaddrs(ifAddrStruct);	
 }
 
 /**
@@ -221,6 +291,9 @@ u_char* createARPv4(INTERFACE_INFO* intInfo,
 	
 	return ptr + sizeofARP;	
 }
+
+
+
 
 /**
  * 
@@ -271,96 +344,63 @@ void sendARPv4(INTERFACE_INFO* intInfo, ssize_t datalen, u_char *packetPtr, pcap
 	
 	std::string target = "10.0.0.31";
 	
-	struct pcap_pkthdr header;
-	const u_char *packet;
-	
 //	inet_pton(AF_INET,(const char*)intInfo->,&src_address.sin_addr);
 	
-	int x;
+	pid_t pid = fork();
 	
-	cerr<<intInfo->hosts<<endl;
-	int i;
-	for(i = 1; i <= intInfo->hosts; i++)
+	if(pid < 0)
 	{
-		cerr<<"hodnota i: "<<i<<endl;
-		dst_ip = ntohl(dst_address.sin_addr.s_addr);
-		
-		inet_pton(AF_INET, my_ntoa(dst_ip+1),&dst_address.sin_addr);
-		//bind socketu
-		if(bind(sockfd, (struct sockaddr *)&src_address, sizeof(src_address)) < 0)
-		{
-			cerr <<"Bind() error"<< endl;
-			exit(EXIT_FAILURE);
-		}
-		
-		
-		cerr<<"IP cíle: "<<inet_ntoa(dst_address.sin_addr)<<" -> Hodnota i: "<<i<<endl;
-
-		//odeslání packetu
-		if(sendto(sockfd,
-				  packetPtr,
-				  datalen, 
-				  0,
-				  (struct sockaddr *)&dst_address,
-				  sizeof(dst_address)) != datalen)
-		{
-			cerr << "Sendto() error"<< endl;
-			exit(EXIT_FAILURE);
-		}
-		
-		
-		ARP_HEADER* newPacket = NULL;
-			
-		packet = pcap_next(descriptor, &header);
-		
-		
-		/* Print its length */
-//		printf("Jacked a packet with length of [%d]\n", header.len);
-//		printf("\nReceived Packet Size: %d bytes\n", header.len); 
-//		
-//		if(!header.len == 0)
-//			test(&header,packet);
-		 
-		char errbuf[PCAP_ERRBUF_SIZE];    /* Error buffer                           */ 
-		ARP_HEADER *arpheader = NULL;       /* Pointer to the ARP header              */ 
-		memset(errbuf,0,PCAP_ERRBUF_SIZE); 
-//		cerr<<"Výpis paketu: ARP"<<endl;
-		//cerr<<packetptr<<endl;
-
-		u_char *ptr = (u_char *)packet;
-//		cerr<<"nasrat"<<endl;
-//		cerr<<ptr<<endl;
-		arpheader = (struct arphdr_def *)(ptr+14); /* Point to the ARP header */ 
-
-		
-		if(!header.len == 0)
-		{
-			x++;
-//			cerr<<"#####################################"<<endl;
-//			printf("\nReceived Packet Size: %d bytes\n", header.len); 
-//			printf("Hardware type: %s\n", (ntohs(arpheader->htype) == 1) ? "Ethernet" : "Unknown"); 	
-//			if (ntohs(arpheader->htype) == 1 && ntohs(arpheader->ptype) == 0x0800){ 
-//
-//				printf("\nTarget MAC: "); 
-//				for(i=0; i<5;i++)
-//					printf("%02X", arpheader->tha[i]); 				
-//				printf("%02X\n", arpheader->tha[5]); 
-//			}
-//			cerr<<"#####################################"<<endl;
-		}
-		
-
-		
-		
-		//test(&header,packet);
-		
-		
-		/* And close the session */
-		//pcap_close(descriptor);
+		cerr<<"Fork() Error!"<<endl;
+		exit(EXIT_FAILURE);
 	}
-	cerr<<"Počet paketů: "<<x<<endl;
+	else if (pid == 0)
+	{
+		cerr<<"CHILD"<<endl;
+		ARPSniffer(descriptor, (pcap_handler)parsePacket);
+		exit(EXIT_SUCCESS);
+	}
+	else
+	{
+		usleep(1000000);
+		cerr<<"PARRENT"<<endl;
+		cerr<<intInfo->hosts<<endl;
+		int i;
+		for(i = 1; i <= intInfo->hosts; i++)
+		{
+			dst_ip = ntohl(dst_address.sin_addr.s_addr);
+
+			inet_pton(AF_INET, my_ntoa(dst_ip+1),&dst_address.sin_addr);
+			//bind socketu
+			if(bind(sockfd, (struct sockaddr *)&src_address, sizeof(src_address)) < 0)
+			{
+				cerr <<"Bind() error"<< endl;
+				exit(EXIT_FAILURE);
+			}
+
+
+	//		cerr<<"IP cíle: "<<inet_ntoa(dst_address.sin_addr)<<" -> Hodnota i: "<<i<<endl;
+
+			//odeslání packetu
+			if(sendto(sockfd,
+					  packetPtr,
+					  datalen, 
+					  0,
+					  (struct sockaddr *)&dst_address,
+					  sizeof(dst_address)) != datalen)
+			{
+				cerr << "Sendto() error"<< endl;
+				exit(EXIT_FAILURE);
+			}
+		}
+		cerr<<"Pakety odeslány."<<endl;
+		usleep(60000000);
+	}
+
 	
 
+//	cerr<<"Počet paketů: "<<x<<endl;
+	
+	
 	close(sockfd);
 }
 
@@ -416,7 +456,12 @@ void printIP(u_char * ip)
 	fprintf (stderr,"%d\n", ip[3]);
 }
 
-
+/**
+ * 
+ * @param 
+ * @param 
+ * @param packetptr
+ */
 void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 {
 	int i=0; 
@@ -425,47 +470,68 @@ void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 	ARP_HEADER *arpheader = NULL;       /* Pointer to the ARP header              */ 
 	memset(errbuf,0,PCAP_ERRBUF_SIZE); 
 	//cerr<<packetptr<<endl;
-	
+	h++;
 	arpheader = (struct arphdr_def *)(packetptr+14); /* Point to the ARP header */ 
-
+//	printf("Operation: %s\n", (ntohs(arpheader->oper) == ARP_REQUEST)? "ARP Request" : "ARP Reply");
 	if(ntohs(arpheader->oper) == ARP_REPLY)
 	{
-		cerr<<"#############################################"<<endl;
-		printf("Received Packet Size: %d bytes\n", pkthdr.len); 
-		printf("Hardware type: %s\n", (ntohs(arpheader->htype) == 1) ? "Ethernet" : "Unknown"); 
-		printf("Protocol type: %s\n", (ntohs(arpheader->ptype) == 0x0800) ? "IPv4" : "Unknown"); 
-		printf("Operation: %s\n", (ntohs(arpheader->oper) == ARP_REQUEST)? "ARP Request" : "ARP Reply"); 
-
-	   /* If is Ethernet and IPv4, print packet contents */ 
-		if (ntohs(arpheader->htype) == 1 && ntohs(arpheader->ptype) == 0x0800){ 
-		  printf("Sender MAC: "); 
-
-		  for(i=0; i<6;i++)
-			  printf("%02X:", arpheader->sha[i]); 
-
-		  printf("\nSender IP: "); 
-
-	//	  cerr<<inet_ntoa(arpheader->spa)<<endl;
-		  for(i=0; i<4;i++)
-			  printf("%d.", arpheader->spa[i]); 
-
-		  printf("\nTarget MAC: "); 
-
-		  for(i=0; i<6;i++)
-			  printf("%02X:", arpheader->tha[i]); 
-
-		  printf("\nTarget IP: "); 
-
-		  for(i=0; i<4; i++)
-			  printf("%d.", arpheader->tpa[i]); 
-
-		  printf("\n"); 
-
-		} 		
+		char tmp[4];
+		// Výpis MAC
+		outputFile<<"\t<host mac=\"";
+		for(i=0; i<5;i++){
+			sprintf(tmp,"%02X", arpheader->sha[i]);
+			outputFile << tmp;
+			if(i % 2 != 0)
+				outputFile<<".";
+		}
+		sprintf(tmp,"%02X", arpheader->sha[5]);
+		outputFile << tmp<<"\">\n";
+		// Výpis IP adres
+		outputFile<<"\t\t<ipv4>";
+		for(i=0; i<3; i++){
+			sprintf(tmp,"%d.", arpheader->spa[i]);
+			outputFile << tmp;
+			
+		}
+		sprintf(tmp,"%d", arpheader->spa[3]);
+		outputFile << tmp <<"</ipv4>\n\t</host>\n";
+		
+		
+		
+//		cerr<<"Paket číslo: "<<h<<endl;
+//		cerr<<"#############################################"<<endl;
+//		printf("Received Packet Size: %d bytes\n", pkthdr.len); 
+//		printf("Hardware type: %s\n", (ntohs(arpheader->htype) == 1) ? "Ethernet" : "Unknown"); 
+//		printf("Protocol type: %s\n", (ntohs(arpheader->ptype) == 0x0800) ? "IPv4" : "Unknown"); 
+//		printf("Operation: %s\n", (ntohs(arpheader->oper) == ARP_REQUEST)? "ARP Request" : "ARP Reply"); 
+//
+//	   /* If is Ethernet and IPv4, print packet contents */ 
+//		if (ntohs(arpheader->htype) == 1 && ntohs(arpheader->ptype) == 0x0800){ 
+//		  printf("Sender MAC: "); 
+//
+//		  for(i=0; i<6;i++)
+//			  printf("%02X:", arpheader->sha[i]); 
+//
+//		  printf("\nSender IP: "); 
+//
+//	//	  cerr<<inet_ntoa(arpheader->spa)<<endl;
+//		  for(i=0; i<4;i++)
+//			  printf("%d.", arpheader->spa[i]); 
+//
+//		  printf("\nTarget MAC: "); 
+//
+//		  for(i=0; i<6;i++)
+//			  printf("%02X:", arpheader->tha[i]); 
+//
+//		  printf("\nTarget IP: "); 
+//
+//		  for(i=0; i<4; i++)
+//			  printf("%d.", arpheader->tpa[i]); 
+//
+//		  printf("\n"); 
+//
+//		} 		
 	}
-	
-	
-	
 	
 }
 
@@ -528,26 +594,3 @@ my_ntoa(unsigned long ip) {
 	return inet_ntoa(addr);
 }
 
-
-
-
-// Zatím netřeba
-// Allocate memory for an array of unsigned chars.
-uint8_t * allocate_ustrmem (int len)
-{
-  uint8_t *tmp;
-
-  if (len <= 0) {
-    fprintf (stderr, "ERROR: Cannot allocate memory because len = %i in allocate_ustrmem().\n", len);
-    exit (EXIT_FAILURE);
-  }
-
-  tmp = (uint8_t *) malloc (len * sizeof (uint8_t));
-  if (tmp != NULL) {
-    memset (tmp, 0, len * sizeof (uint8_t));
-    return (tmp);
-  } else {
-    fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_ustrmem().\n");
-    exit (EXIT_FAILURE);
-  }
-}
