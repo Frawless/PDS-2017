@@ -93,9 +93,25 @@ typedef struct interface_info{
 	char interface[255];
 } INTERFACE_INFO;
 
+
+// Define a struct for hop-by-hop header, excluding options.
+typedef struct _hop_hdr hop_hdr;
+struct _hop_hdr {
+  uint8_t nxt_hdr;
+  uint8_t hdr_len;
+};
+
 #define ETH_HDRLEN 14  // Velikost Ethernetového paketu
 #define IP6_HDRLEN 40  // IPv6 header velikost
 #define ICMP_HDRLEN 8  // ICMP header velikost
+
+
+// Define some constants.
+#define HOP_HDRLEN 2          // Hop-by-hop header length, excluding options
+#define MAX_HBHOPTIONS 2     // Maximum number of extension header options
+#define MAX_HBHOPTLEN 256     // Maximum length of a hop-by-hop option (some large value)
+#define MAX_ADDRESSES 255     // Maximum number of (full) addresses that can be used in type 3 routing header
+
 
 /**
  * Funkce pro otevření požadovaného interfacu
@@ -174,6 +190,10 @@ char *
 allocate_strmem (int len);
 uint8_t *
 allocate_ustrmem (int len);
+uint8_t **
+allocate_ustrmemp (int len);
+int *
+allocate_intmem (int len);
 
 void test(struct pcap_pkthdr *pkthdr,const u_char *packetptr);
 

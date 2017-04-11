@@ -305,53 +305,7 @@ u_char* createARP(INTERFACE_INFO* intInfo,
  */
 void scanNetwork(INTERFACE_INFO* intInfo, ARP_HEADER* arpHdr, struct icmp6_hdr* icmphdr, struct ip6_hdr* iphdr, ssize_t datalen, u_char *packetPtr, pcap_t* descriptor)
 {
-	u_char *packetSize = packetPtr;
-	packetSize = createARP(intInfo, arpHdr,packetPtr,datalen);
-	
-	
-	int sockfd;
-	
-	unsigned long dst_ip;
-	
-	sockaddr_in src_address;
-	sockaddr_in dst_address;
-	memset(&src_address, 0, sizeof(src_address));
-	memset(&dst_address, 0, sizeof(dst_address));
-	
-	src_address.sin_port = htons(520);
-	src_address.sin_family = AF_INET;
-	//src_address.sin_addr.s_addr = INADDR_ANY;
-	
-	//vytvoření cílové adresy a portu
-	dst_address.sin_port = htons(520);
-	dst_address.sin_family = AF_INET;
-	
-	cerr<<"Test na hodnotu:";
-	printIP(intInfo->interfaceAdd);
-	
-	// TODO - vyřešit to const char* aby tam byla pravá adresa sítě, pak vše pojede!
-	inet_pton(AF_INET,createAddress(intInfo->interfaceAdd).c_str(),&src_address.sin_addr);
-	
-	inet_pton(AF_INET,createAddress(intInfo->networkAddress).c_str(),&dst_address.sin_addr);
-	
-	dst_ip = ntohl(dst_address.sin_addr.s_addr);
-	
 
-	cerr<<"Target: "<<createAddress(intInfo->interfaceAdd)<<endl;
-//	printIP(intInfo->networkAddress);
-//	cerr<<intInfo->interfaceAdd<<endl;
-	
-	
-	// Vytvoření socketu.
-	if ((sockfd = socket (AF_INET, SOCK_RAW, IPPROTO_RAW)) < 0) {
-		perror ("Socket() chyba při získání socketu pro ioctl()!");
-		exit(EXIT_FAILURE);
-	}
-	
-	std::string target = "10.0.0.31";
-	
-//	inet_pton(AF_INET,(const char*)intInfo->,&src_address.sin_addr);
-	
 	pid_t pid = fork();
 	
 	if(pid < 0)
@@ -362,17 +316,17 @@ void scanNetwork(INTERFACE_INFO* intInfo, ARP_HEADER* arpHdr, struct icmp6_hdr* 
 	else if (pid == 0)
 	{
 		// Odchytávání
-		ARPSniffer(descriptor, (pcap_handler)parsePacket);
+//		ARPSniffer(descriptor, (pcap_handler)parsePacket);
 		exit(EXIT_SUCCESS);
 	}
 	else
 	{
 		// Skenování
-		scanIPv4(intInfo);
+//		scanIPv4(intInfo);
+		scanIPv6(intInfo,false);
 		scanIPv6(intInfo,true);
-		usleep(115000000);
+//		usleep(55000000);
 	}
-	close(sockfd);
 }
 
 /**
@@ -512,10 +466,18 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 //	fillIPv6hdr(intInfo, send_iphdr, datalen);
 	// IPv6 version (4 bits), Traffic class (8 bits), Flow label (20 bits)
 	send_iphdr.ip6_flow = htonl ((6 << 28) | (0 << 20) | 0);
-	// Payload length (16 bits): ICMP header + ICMP data
-	send_iphdr.ip6_plen = htons (ICMP_HDRLEN + datalen);
+
 	// Next header (8 bits): 58 for ICMP
-	send_iphdr.ip6_nxt = IPPROTO_ICMPV6;
+	if(malform){
+		// Payload length (16 bits): ICMP header + ICMP data
+		send_iphdr.ip6_plen = htons (32);
+		send_iphdr.ip6_nxt = 0;
+	}
+	else{
+		// Payload length (16 bits): ICMP header + ICMP data
+		send_iphdr.ip6_plen = htons (ICMP_HDRLEN + datalen);
+		send_iphdr.ip6_nxt = IPPROTO_ICMPV6;
+	}
 	// Hop limit (8 bits): default to maximum value
 	send_iphdr.ip6_hops = 255;
 	// Source IPv6 address (128 bits)
@@ -523,40 +485,136 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 	// Destination IPv6 address (128 bits)
 	inet_pton (AF_INET6, "ff02::1", &(send_iphdr.ip6_dst));
 
-	// ICMP header
-	// Message Type (8 bits): echo request
-	send_icmphdr.icmp6_type = ICMP6_ECHO_REQUEST;
-	// Message Code (8 bits): echo request
-	send_icmphdr.icmp6_code = 0;
-	// Identifier (16 bits): usually pid of sending process - pick a number
-	send_icmphdr.icmp6_id = htons (1000);
-	// Sequence Number (16 bits): starts at 0
-	send_icmphdr.icmp6_seq = htons (0);
-	// ICMP header checksum (16 bits): set to 0 when calculating checksum
-	send_icmphdr.icmp6_cksum = 0;
-	send_icmphdr.icmp6_cksum = icmp6_checksum (send_iphdr, send_icmphdr, data, datalen);
+	
+	if(malform){
+		// Payload length (16 bits): ICMP header + ICMP data
+		send_iphdr.ip6_plen = htons (32);
+		send_iphdr.ip6_nxt = 0;
+		
+		int hoplen, indx,i,c;
+		hop_hdr hophdr;
+		int hbh_nopt;  // Number of hop-by-hop options
+		int hbh_opt_totlen;  // Total length of hop-by-hop options
+		int *hbh_optlen;  // Hop-by-hop option length: hbh_optlen[option #] = int
+		uint8_t **hbh_options;  // Hop-by-hop options data: hbh_options[option #] = uint8_t *
+		int *hbh_x, *hbh_y;  // Alignment requirements for hop-by-hop options: hbh_x[option #] = int, hbh_y[option #] = int
+		int hbh_optpadlen;
+		
+		hophdr.nxt_hdr = IPPROTO_ICMPV6;
+		hophdr.hdr_len = 1;
+		
+		u_char hop_opt[30];
+		
+////		// Allocate memory for hop-by-hop extension header options.
+//		hbh_optlen = allocate_intmem (MAX_HBHOPTIONS);  // hbh_optlen[option #] = int
+//		hbh_options = allocate_ustrmemp (MAX_HBHOPTIONS);  // hbh_options[option #] = uint8_t *
+//		for (i=0; i<MAX_HBHOPTIONS; i++) {
+//			hbh_options[i] = allocate_ustrmem (MAX_HBHOPTLEN);
+//		}
+//		hbh_x = allocate_intmem (MAX_HBHOPTIONS);  // Hop-by-hop option alignment requirement x (of xN + y): hbh_x[option #] = int
+//		hbh_y = allocate_intmem (MAX_HBHOPTIONS);  // Hop-by-hop option alignment requirement y (of xN + y): hbh_y[option #] = int
+//
+//		// hbh_options[option #] = uint8_t *
+//		hbh_options[0][0] = 5;  // Option Type: router alert
+//		hbh_options[0][1] = 2;  // Length of Option Data field
+//		hbh_options[0][2] = 0;  // Option Data: some unassigned IANA value, you
+//		hbh_options[0][3] = 5;  // should select what you want.
+//		// Hop-by-hop option length.
+//		hbh_optlen[0] = 4;  // Hop-by-hop header option length (excludes hop-by-hop header itself (2 bytes))
+//
+//		// Calculate total length of hop-by-hop options.
+//		hbh_opt_totlen = 0;
+//		for (i=0; i<hbh_nopt; i++) {
+//		  hbh_opt_totlen += hbh_optlen[i];
+//		}
+////
+//		// Determine total padding needed to align and pad hop-by-hop options (Section 4.2 of RFC 2460).
+//		indx = 0;
+//		if (hbh_nopt > 0) {
+//		  indx += HOP_HDRLEN; // Account for hop-by-hop header (Next Header and Header Length)
+//		  for (i=0; i<hbh_nopt; i++) {
+//			// Add any necessary alignment for option i
+//			while ((indx % hbh_x[i]) != hbh_y[i]) {
+//			  indx++;
+//			}
+//			// Add length of option i
+//			indx += hbh_optlen[i];
+//		  }
+//		  // Now pad last option to next 8-byte boundary (Section 4.2 of RFC 2460).
+//		  while ((indx % 8) != 0) {
+//			indx++;
+//		  }
+//
+//		  // Total of alignments and final padding = indx - HOP_HDRLEN - total length of hop-by-hop (non-pad) options
+//		  hbh_optpadlen = indx - HOP_HDRLEN - hbh_opt_totlen;
+//		}
+		
+		c = 0;
+		// Copy destination and source MAC addresses to ethernet frame.
+		memcpy (send_ether_frame, dst_mac, 6 * sizeof (uint8_t));
+		memcpy (send_ether_frame + 6, intInfo->interfaceMac, 6 * sizeof (uint8_t));
+		
+		// Next is ethernet type code (ETH_P_IPV6 for IPv6).
+		// http://www.iana.org/assignments/ethernet-numbers
+		send_ether_frame[12] = ETH_P_IPV6 / 256;
+		send_ether_frame[13] = ETH_P_IPV6 % 256;
+		c += ETH_HDRLEN;
+		
+		// Copy IPv6 header to ethernet frame.
+		memcpy (send_ether_frame + c, &send_iphdr, IP6_HDRLEN * sizeof (uint8_t));
+		c += IP6_HDRLEN;
+		// Copy hop-by-hop extension header (without options) to ethernet frame.
+		memcpy (send_ether_frame + c, &hophdr, HOP_HDRLEN * sizeof (uint8_t));
+		c += HOP_HDRLEN;
+		indx += HOP_HDRLEN;
+		// Copy hop-by_hop extension header options to ethernet frame.
+		for (int j=0; j<hbh_nopt; j++) {
+		  // Pad as needed to achieve alignment requirements for option j (Section 4.2 of RFC 2460).
+//		  option_pad (&indx, send_ether_frame, &c, hbh_x[j], hbh_y[j]);
 
-	// Fill out ethernet frame header.
-	// Ethernet frame length = ethernet header (MAC + MAC + ethernet type) + ethernet data (IP header + ICMP header + ICMP data)
-	frame_length = 6 + 6 + 2 + IP6_HDRLEN + ICMP_HDRLEN + datalen;
-	// Destination and Source MAC addresses
-	memcpy (send_ether_frame, dst_mac, 6 * sizeof (uint8_t));
-	memcpy (send_ether_frame + 6, intInfo->interfaceMac, 6 * sizeof (uint8_t));
+		  // Copy hop-by-hop option to ethernet frame.
+		  memcpy (send_ether_frame + c, hbh_options[j], hbh_optlen[j] * sizeof (uint8_t));
+		  c += hbh_optlen[j];
+		  indx += hbh_optlen[j];
+		}
+	}
+	else{
+		// ICMP header
+		// Message Type (8 bits): echo request
+		send_icmphdr.icmp6_type = ICMP6_ECHO_REQUEST;
+		// Message Code (8 bits): echo request
+		send_icmphdr.icmp6_code = 0;
+		// Identifier (16 bits): usually pid of sending process - pick a number
+		send_icmphdr.icmp6_id = htons (1000);
+		// Sequence Number (16 bits): starts at 0
+		send_icmphdr.icmp6_seq = htons (0);
+		// ICMP header checksum (16 bits): set to 0 when calculating checksum
+		send_icmphdr.icmp6_cksum = 0;
+		send_icmphdr.icmp6_cksum = icmp6_checksum (send_iphdr, send_icmphdr, data, datalen);
+		
 
-	// Next is ethernet type code (ETH_P_IPV6 for IPv6).
-	// http://www.iana.org/assignments/ethernet-numbers
-	send_ether_frame[12] = ETH_P_IPV6 / 256;
-	send_ether_frame[13] = ETH_P_IPV6 % 256;
+		// Fill out ethernet frame header.
+		// Ethernet frame length = ethernet header (MAC + MAC + ethernet type) + ethernet data (IP header + ICMP header + ICMP data)
+		frame_length = 6 + 6 + 2 + IP6_HDRLEN + ICMP_HDRLEN + datalen;
+		// Destination and Source MAC addresses
+		memcpy (send_ether_frame, dst_mac, 6 * sizeof (uint8_t));
+		memcpy (send_ether_frame + 6, intInfo->interfaceMac, 6 * sizeof (uint8_t));
 
-	// Next is ethernet frame data (IPv6 header + ICMP header + ICMP data).
-	// IPv6 header
-	memcpy (send_ether_frame + ETH_HDRLEN, &send_iphdr, IP6_HDRLEN * sizeof (uint8_t));
-	// ICMP header
-	memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN, &send_icmphdr, ICMP_HDRLEN * sizeof (uint8_t));
-	// ICMP data
-	memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN + ICMP_HDRLEN, data, datalen * sizeof (uint8_t));
+		// Next is ethernet type code (ETH_P_IPV6 for IPv6).
+		// http://www.iana.org/assignments/ethernet-numbers
+		send_ether_frame[12] = ETH_P_IPV6 / 256;
+		send_ether_frame[13] = ETH_P_IPV6 % 256;
 
-	// Send ethernet frame to socket.
+		// Next is ethernet frame data (IPv6 header + ICMP header + ICMP data).
+		// IPv6 header
+		memcpy (send_ether_frame + ETH_HDRLEN, &send_iphdr, IP6_HDRLEN * sizeof (uint8_t));
+		// ICMP header
+		memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN, &send_icmphdr, ICMP_HDRLEN * sizeof (uint8_t));
+		// ICMP data
+		memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN + ICMP_HDRLEN, data, datalen * sizeof (uint8_t));
+	}
+
+		// Send ethernet frame to socket.
 	if (sendto (sendsd, send_ether_frame, frame_length, 0, (struct sockaddr *) &device, sizeof (device)) <= 0) {
 		perror ("sendto() failed ");
 		exit (EXIT_FAILURE);
@@ -923,6 +981,48 @@ allocate_ustrmem (int len)
     return ((uint8_t *)tmp);
   } else {
     fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_ustrmem().\n");
+    exit (EXIT_FAILURE);
+  }
+}
+
+// Allocate memory for an array of pointers to arrays of unsigned chars.
+uint8_t **
+allocate_ustrmemp (int len)
+{
+  void *tmp;
+
+  if (len <= 0) {
+    fprintf (stderr, "ERROR: Cannot allocate memory because len = %i in allocate_ustrmemp().\n", len);
+    exit (EXIT_FAILURE);
+  }
+
+  tmp = (uint8_t **) malloc (len * sizeof (uint8_t *));
+  if (tmp != NULL) {
+    memset (tmp, 0, len * sizeof (uint8_t *));
+    return ((uint8_t **)tmp);
+  } else {
+    fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_ustrmemp().\n");
+    exit (EXIT_FAILURE);
+  }
+}
+
+// Allocate memory for an array of ints.
+int *
+allocate_intmem (int len)
+{
+  void *tmp;
+
+  if (len <= 0) {
+    fprintf (stderr, "ERROR: Cannot allocate memory because len = %i in allocate_intmem().\n", len);
+    exit (EXIT_FAILURE);
+  }
+
+  tmp = (int *) malloc (len * sizeof (int));
+  if (tmp != NULL) {
+    memset (tmp, 0, len * sizeof (int));
+    return ((int *)tmp);
+  } else {
+    fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_intmem().\n");
     exit (EXIT_FAILURE);
   }
 }
