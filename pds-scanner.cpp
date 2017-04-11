@@ -106,20 +106,13 @@ int main(int argc, char** argv) {
 	
 	INTERFACE_INFO* intInfo = (INTERFACE_INFO*)calloc(18, sizeof(INTERFACE_INFO));			// Struktura pro potřebné adresy
 	ARP_HEADER* arpHdr = NULL;
+	struct icmp6_hdr* icmphdr = NULL;
+	struct ip6_hdr* iphdr = NULL;
 	
-	ssize_t sizeofARP = sizeof(ARP_HEADER);
+	
 	ssize_t datalen = 0;
-	//vytvoření ukazatele na packet o velikosti "header" + "auth" + "ext" částí
+	//vytvoření ukazatele na packet o velikosti ARP packetu
 	u_char packetPtr[sizeof(ARP_HEADER)];
-	//ukazatel na ukazatel na packet
-	u_char *packetSize = packetPtr;
-	
-//	memset(&intInfo,0,sizeof intInfo);	// Alokace paměti
-	
-	struct sockaddr_in sa;
-	char str[INET_ADDRSTRLEN];
-	// store this IP address in sa:
-
 	
 	cerr<<"test na INFO:"<<endl;
 	getInterfaceInfo(intInfo,params.interface);
@@ -136,20 +129,11 @@ int main(int argc, char** argv) {
 	}
 	
 	//filtr pro ARP a NDP
-	char bpfstr[255] = "arp";	
-	
 	//návázání spojení s daným interface
 	packetDesc = openInterface(params.interface, "arp");
-	
 	openFile(params.fileName);
-	
-	std::string target = "10.0.0.38";
-	
-	packetSize = createARPv4(intInfo,arpHdr,(char *)target.c_str(),packetSize,datalen,sizeofARP);
-	
-	sendARPv4(intInfo,datalen,packetPtr, packetDesc);
-	
-//	ARPSniffer(intInfo,packetDesc, (pcap_handler)parsePacket);
+	// Skenování sítě
+	scanNetwork(intInfo, arpHdr, icmphdr, iphdr, datalen,packetPtr, packetDesc);
 	
 	//ukončení aplikace
 	signal(SIGINT, terminate);

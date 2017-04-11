@@ -36,6 +36,7 @@
 #include <netinet/ip6.h>
 #include <netinet/if_ether.h>
 #include <pcap.h>
+#include <netinet/icmp6.h>
 	
 #include <string>
 
@@ -89,8 +90,12 @@ typedef struct interface_info{
 	char interfaceAddv6b[INET6_ADDRSTRLEN];
 	char interfaceAddv6c[INET6_ADDRSTRLEN];
 	int hosts;
+	char interface[255];
 } INTERFACE_INFO;
 
+#define ETH_HDRLEN 14  // Velikost Ethernetového paketu
+#define IP6_HDRLEN 40  // IPv6 header velikost
+#define ICMP_HDRLEN 8  // ICMP header velikost
 
 /**
  * Funkce pro otevření požadovaného interfacu
@@ -135,7 +140,8 @@ void getInterfaceInfo(INTERFACE_INFO* intInfo, char * interface);
  * @return 
  */
 char * my_ntoa(unsigned long ip);
-
+uint16_t checksum (uint16_t *addr, int len);
+uint16_t icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_t *payload, int payloadlen);
 /**
  * 
  * @param intInfo
@@ -146,12 +152,10 @@ char * my_ntoa(unsigned long ip);
  * @param sizeofARP
  * @return 
  */
-u_char* createARPv4(INTERFACE_INFO* intInfo,
+u_char* createARP(INTERFACE_INFO* intInfo,
 				ARP_HEADER* arpHdr,
-				char* tarAdd,
 				u_char* ptr,
-				ssize_t &datalen,
-				size_t sizeofARP);
+				ssize_t &datalen);
 
 /**
  * 
@@ -159,9 +163,17 @@ u_char* createARPv4(INTERFACE_INFO* intInfo,
  * @param datalen
  * @param packetPtr
  */
-void sendARPv4(INTERFACE_INFO* intInfo, ssize_t datalen, u_char *packetPtr, pcap_t* descriptor);
+void scanNetwork(INTERFACE_INFO* intInfo, ARP_HEADER* arpHdr, struct icmp6_hdr* icmphdr, struct ip6_hdr* iphdr, ssize_t datalen, u_char *packetPtr, pcap_t* descriptor);
 
+void scanIPv4(INTERFACE_INFO* intInfo);
+void scanIPv6(INTERFACE_INFO* intInfo, bool malform);
 
+void fillIPv6hdr(INTERFACE_INFO* intInfo,struct ip6_hdr send_iphdr, int datalen);
+
+char *
+allocate_strmem (int len);
+uint8_t *
+allocate_ustrmem (int len);
 
 void test(struct pcap_pkthdr *pkthdr,const u_char *packetptr);
 
