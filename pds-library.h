@@ -111,6 +111,7 @@ struct _hop_hdr {
 #define MAX_HBHOPTIONS 2     // Maximum number of extension header options
 #define MAX_HBHOPTLEN 256     // Maximum length of a hop-by-hop option (some large value)
 #define MAX_ADDRESSES 255     // Maximum number of (full) addresses that can be used in type 3 routing header
+#define MALFORMED_SIZE 30
 
 
 /**
@@ -179,7 +180,7 @@ u_char* createARP(INTERFACE_INFO* intInfo,
  * @param datalen
  * @param packetPtr
  */
-void scanNetwork(INTERFACE_INFO* intInfo, ARP_HEADER* arpHdr, struct icmp6_hdr* icmphdr, struct ip6_hdr* iphdr, ssize_t datalen, u_char *packetPtr, pcap_t* descriptor);
+void scanNetwork(INTERFACE_INFO* intInfo, pcap_t* descriptor);
 
 void scanIPv4(INTERFACE_INFO* intInfo);
 void scanIPv6(INTERFACE_INFO* intInfo, bool malform);

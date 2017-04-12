@@ -130,10 +130,10 @@ int main(int argc, char** argv) {
 	
 	//filtr pro ARP a NDP
 	//návázání spojení s daným interface
-	packetDesc = openInterface(params.interface, "arp");
+	packetDesc = openInterface(params.interface, "(arp) or (icmp6)");
 	openFile(params.fileName);
 	// Skenování sítě
-	scanNetwork(intInfo, arpHdr, icmphdr, iphdr, datalen,packetPtr, packetDesc);
+	scanNetwork(intInfo, packetDesc);
 	
 	//ukončení aplikace
 	signal(SIGINT, terminate);

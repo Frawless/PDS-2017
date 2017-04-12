@@ -42,6 +42,7 @@
 
 using namespace std;
 int h = 0;
+int l = 0;
 
 
 ofstream outputFile;
@@ -143,7 +144,8 @@ void ARPSniffer(pcap_t* descriptor, pcap_handler func)
 	outputFile.close();
 	
 	cerr<<"Func: capturePacket exit(succes)"<<endl;
-	cerr<<"Celkem paketů: "<<h<<endl;
+	cerr<<"Celkem ARP paketů: "<<l<<endl;
+	cerr<<"Celkem ICMP paketů: "<<h<<endl;
 }
 
 /**
@@ -303,7 +305,7 @@ u_char* createARP(INTERFACE_INFO* intInfo,
  * @param datalen
  * @param packetPtr
  */
-void scanNetwork(INTERFACE_INFO* intInfo, ARP_HEADER* arpHdr, struct icmp6_hdr* icmphdr, struct ip6_hdr* iphdr, ssize_t datalen, u_char *packetPtr, pcap_t* descriptor)
+void scanNetwork(INTERFACE_INFO* intInfo,pcap_t* descriptor)
 {
 
 	pid_t pid = fork();
@@ -316,16 +318,18 @@ void scanNetwork(INTERFACE_INFO* intInfo, ARP_HEADER* arpHdr, struct icmp6_hdr* 
 	else if (pid == 0)
 	{
 		// Odchytávání
-//		ARPSniffer(descriptor, (pcap_handler)parsePacket);
+		ARPSniffer(descriptor, (pcap_handler)parsePacket);
 		exit(EXIT_SUCCESS);
 	}
 	else
 	{
 		// Skenování
-//		scanIPv4(intInfo);
+		scanIPv4(intInfo);
+		cerr<<"Scan IPv4 rozeslán."<<endl;
 		scanIPv6(intInfo,false);
 		scanIPv6(intInfo,true);
-//		usleep(55000000);
+		cerr<<"Scan IPv6 rozselán."<<endl;
+		usleep(110000000);
 	}
 }
 
@@ -356,8 +360,8 @@ void scanIPv4(INTERFACE_INFO* intInfo)
 	dst_address.sin_port = htons(520);
 	dst_address.sin_family = AF_INET;
 	
-	cerr<<"Test na hodnotu:";
-	printIP(intInfo->interfaceAdd);
+//	cerr<<"Test na hodnotu:";
+//	printIP(intInfo->interfaceAdd);
 	
 	inet_pton(AF_INET,createAddress(intInfo->interfaceAdd).c_str(),&src_address.sin_addr);
 	inet_pton(AF_INET,createAddress(intInfo->networkAddress).c_str(),&dst_address.sin_addr);
@@ -403,7 +407,6 @@ void scanIPv4(INTERFACE_INFO* intInfo)
 			exit(EXIT_FAILURE);
 		}
 	}
-	cerr<<"Pakety ARP odeslány."<<endl;
 	close(sockfd);
 }
 
@@ -443,12 +446,12 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 	printf ("Index for interface %s is %i\n", intInfo->interface, device.sll_ifindex);
 
 	// Set destination MAC address: you need to fill these out
-	dst_mac[0] = 0xff;
-	dst_mac[1] = 0xff;
-	dst_mac[2] = 0xff;
-	dst_mac[3] = 0xff;
-	dst_mac[4] = 0xff;
-	dst_mac[5] = 0xff;
+	dst_mac[0] = 0x33;
+	dst_mac[1] = 0x33;
+	dst_mac[2] = 0x00;
+	dst_mac[3] = 0x00;
+	dst_mac[4] = 0x00;
+	dst_mac[5] = 0x01;
 
 	// Fill out sockaddr_ll.
 	device.sll_family = AF_PACKET;
@@ -466,18 +469,6 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 //	fillIPv6hdr(intInfo, send_iphdr, datalen);
 	// IPv6 version (4 bits), Traffic class (8 bits), Flow label (20 bits)
 	send_iphdr.ip6_flow = htonl ((6 << 28) | (0 << 20) | 0);
-
-	// Next header (8 bits): 58 for ICMP
-	if(malform){
-		// Payload length (16 bits): ICMP header + ICMP data
-		send_iphdr.ip6_plen = htons (32);
-		send_iphdr.ip6_nxt = 0;
-	}
-	else{
-		// Payload length (16 bits): ICMP header + ICMP data
-		send_iphdr.ip6_plen = htons (ICMP_HDRLEN + datalen);
-		send_iphdr.ip6_nxt = IPPROTO_ICMPV6;
-	}
 	// Hop limit (8 bits): default to maximum value
 	send_iphdr.ip6_hops = 255;
 	// Source IPv6 address (128 bits)
@@ -491,65 +482,44 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 		send_iphdr.ip6_plen = htons (32);
 		send_iphdr.ip6_nxt = 0;
 		
-		int hoplen, indx,i,c;
 		hop_hdr hophdr;
-		int hbh_nopt;  // Number of hop-by-hop options
-		int hbh_opt_totlen;  // Total length of hop-by-hop options
-		int *hbh_optlen;  // Hop-by-hop option length: hbh_optlen[option #] = int
-		uint8_t **hbh_options;  // Hop-by-hop options data: hbh_options[option #] = uint8_t *
-		int *hbh_x, *hbh_y;  // Alignment requirements for hop-by-hop options: hbh_x[option #] = int, hbh_y[option #] = int
-		int hbh_optpadlen;
-		
 		hophdr.nxt_hdr = IPPROTO_ICMPV6;
 		hophdr.hdr_len = 1;
 		
-		u_char hop_opt[30];
+		u_char hop_opt[MALFORMED_SIZE];
+		hop_opt[0] = 0x80;
+		hop_opt[1] = 0x01;
+		hop_opt[2] = 0x7f;
+		hop_opt[3] = 0x1b;
+		hop_opt[4] = 0x7f;
+		hop_opt[5] = 0x1b;
+		hop_opt[6] = 0x7f;
+		hop_opt[7] = 0x1b;
+		hop_opt[8] = 0x00;
+		hop_opt[9] = 0x00;
+		hop_opt[10] = 0x00;
+		hop_opt[11] = 0x00;
+		hop_opt[12] = 0x00;
+		hop_opt[13] = 0x00;
+		hop_opt[14] = 0x80;
+		hop_opt[15] = 0x00;
+		hop_opt[16] = 0xcf;
+		hop_opt[17] = 0x34;
+		hop_opt[18] = 0xde;
+		hop_opt[19] = 0xad;
+		hop_opt[20] = 0xbe;
+		hop_opt[21] = 0xef;
+		hop_opt[22] = 0x80;
+		hop_opt[23] = 0x01;
+		hop_opt[24] = 0x7f;
+		hop_opt[25] = 0x1b;
+		hop_opt[26] = 0x7f;
+		hop_opt[27] = 0x1b;
+		hop_opt[28] = 0x7f;
+		hop_opt[29] = 0x1b;
 		
-////		// Allocate memory for hop-by-hop extension header options.
-//		hbh_optlen = allocate_intmem (MAX_HBHOPTIONS);  // hbh_optlen[option #] = int
-//		hbh_options = allocate_ustrmemp (MAX_HBHOPTIONS);  // hbh_options[option #] = uint8_t *
-//		for (i=0; i<MAX_HBHOPTIONS; i++) {
-//			hbh_options[i] = allocate_ustrmem (MAX_HBHOPTLEN);
-//		}
-//		hbh_x = allocate_intmem (MAX_HBHOPTIONS);  // Hop-by-hop option alignment requirement x (of xN + y): hbh_x[option #] = int
-//		hbh_y = allocate_intmem (MAX_HBHOPTIONS);  // Hop-by-hop option alignment requirement y (of xN + y): hbh_y[option #] = int
-//
-//		// hbh_options[option #] = uint8_t *
-//		hbh_options[0][0] = 5;  // Option Type: router alert
-//		hbh_options[0][1] = 2;  // Length of Option Data field
-//		hbh_options[0][2] = 0;  // Option Data: some unassigned IANA value, you
-//		hbh_options[0][3] = 5;  // should select what you want.
-//		// Hop-by-hop option length.
-//		hbh_optlen[0] = 4;  // Hop-by-hop header option length (excludes hop-by-hop header itself (2 bytes))
-//
-//		// Calculate total length of hop-by-hop options.
-//		hbh_opt_totlen = 0;
-//		for (i=0; i<hbh_nopt; i++) {
-//		  hbh_opt_totlen += hbh_optlen[i];
-//		}
-////
-//		// Determine total padding needed to align and pad hop-by-hop options (Section 4.2 of RFC 2460).
-//		indx = 0;
-//		if (hbh_nopt > 0) {
-//		  indx += HOP_HDRLEN; // Account for hop-by-hop header (Next Header and Header Length)
-//		  for (i=0; i<hbh_nopt; i++) {
-//			// Add any necessary alignment for option i
-//			while ((indx % hbh_x[i]) != hbh_y[i]) {
-//			  indx++;
-//			}
-//			// Add length of option i
-//			indx += hbh_optlen[i];
-//		  }
-//		  // Now pad last option to next 8-byte boundary (Section 4.2 of RFC 2460).
-//		  while ((indx % 8) != 0) {
-//			indx++;
-//		  }
-//
-//		  // Total of alignments and final padding = indx - HOP_HDRLEN - total length of hop-by-hop (non-pad) options
-//		  hbh_optpadlen = indx - HOP_HDRLEN - hbh_opt_totlen;
-//		}
 		
-		c = 0;
+		frame_length = 0;
 		// Copy destination and source MAC addresses to ethernet frame.
 		memcpy (send_ether_frame, dst_mac, 6 * sizeof (uint8_t));
 		memcpy (send_ether_frame + 6, intInfo->interfaceMac, 6 * sizeof (uint8_t));
@@ -558,27 +528,22 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 		// http://www.iana.org/assignments/ethernet-numbers
 		send_ether_frame[12] = ETH_P_IPV6 / 256;
 		send_ether_frame[13] = ETH_P_IPV6 % 256;
-		c += ETH_HDRLEN;
+		frame_length += ETH_HDRLEN;
 		
 		// Copy IPv6 header to ethernet frame.
-		memcpy (send_ether_frame + c, &send_iphdr, IP6_HDRLEN * sizeof (uint8_t));
-		c += IP6_HDRLEN;
+		memcpy (send_ether_frame + frame_length, &send_iphdr, IP6_HDRLEN * sizeof (uint8_t));
+		frame_length += IP6_HDRLEN;
 		// Copy hop-by-hop extension header (without options) to ethernet frame.
-		memcpy (send_ether_frame + c, &hophdr, HOP_HDRLEN * sizeof (uint8_t));
-		c += HOP_HDRLEN;
-		indx += HOP_HDRLEN;
-		// Copy hop-by_hop extension header options to ethernet frame.
-		for (int j=0; j<hbh_nopt; j++) {
-		  // Pad as needed to achieve alignment requirements for option j (Section 4.2 of RFC 2460).
-//		  option_pad (&indx, send_ether_frame, &c, hbh_x[j], hbh_y[j]);
-
-		  // Copy hop-by-hop option to ethernet frame.
-		  memcpy (send_ether_frame + c, hbh_options[j], hbh_optlen[j] * sizeof (uint8_t));
-		  c += hbh_optlen[j];
-		  indx += hbh_optlen[j];
-		}
+		memcpy (send_ether_frame + frame_length, &hophdr, HOP_HDRLEN * sizeof (uint8_t));
+		frame_length += HOP_HDRLEN;
+		
+		memcpy (send_ether_frame + frame_length, &hop_opt, MALFORMED_SIZE * sizeof (u_char));
+		frame_length += MALFORMED_SIZE;
 	}
 	else{
+		// Payload length (16 bits): ICMP header + ICMP data
+		send_iphdr.ip6_plen = htons (ICMP_HDRLEN + datalen);
+		send_iphdr.ip6_nxt = IPPROTO_ICMPV6;		
 		// ICMP header
 		// Message Type (8 bits): echo request
 		send_icmphdr.icmp6_type = ICMP6_ECHO_REQUEST;
@@ -622,24 +587,6 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 	cerr<<"Odesláno"<<endl;
 }
 
-
-void fillIPv6hdr(INTERFACE_INFO* intInfo, struct ip6_hdr* send_iphdr, int datalen)
-{
-	// IPv6 version (4 bits), Traffic class (8 bits), Flow label (20 bits)
-	send_iphdr->ip6_flow = htonl ((6 << 28) | (0 << 20) | 0);
-	// Payload length (16 bits): ICMP header + ICMP data
-	send_iphdr->ip6_plen = htons (ICMP_HDRLEN + datalen);
-	// Next header (8 bits): 58 for ICMP
-	send_iphdr->ip6_nxt = IPPROTO_ICMPV6;
-	// Hop limit (8 bits): default to maximum value
-	send_iphdr->ip6_hops = 255;
-	// Source IPv6 address (128 bits)
-	inet_pton (AF_INET6, intInfo->interfaceAddv6a, &(send_iphdr->ip6_src));
-	// Destination IPv6 address (128 bits)
-	inet_pton (AF_INET6, "ff02::1", &(send_iphdr->ip6_dst));
-}
-
-
 /**
  * 
  * @param input
@@ -674,10 +621,10 @@ std::string createAddress(u_char * input)
  */
 void printMAC(u_char * mac)
 {
-	cerr<<"MAC adresa užívaného rozhranní:";
+//	cerr<<"MAC adresa užívaného rozhranní:";
 	for(int i = 0; i < 5; i++)
 		fprintf (stderr,"%02x:", mac[i]);
-	fprintf (stderr,"%02x\n", mac[5]);
+	fprintf (stderr,"%02x", mac[5]);
 }
 
 /**
@@ -706,32 +653,71 @@ void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 	ARP_HEADER *arpheader = NULL;       /* Pointer to the ARP header              */ 
 	memset(errbuf,0,PCAP_ERRBUF_SIZE); 
 	//cerr<<packetptr<<endl;
-	h++;
-	arpheader = (struct arphdr_def *)(packetptr+14); /* Point to the ARP header */ 
-//	printf("Operation: %s\n", (ntohs(arpheader->oper) == ARP_REQUEST)? "ARP Request" : "ARP Reply");
-	if(ntohs(arpheader->oper) == ARP_REPLY)
-	{
-		char tmp[4];
-		// Výpis MAC
-		outputFile<<"\t<host mac=\"";
-		for(i=0; i<5;i++){
-			sprintf(tmp,"%02X", arpheader->sha[i]);
-			outputFile << tmp;
-			if(i % 2 != 0)
-				outputFile<<".";
-		}
-		sprintf(tmp,"%02X", arpheader->sha[5]);
-		outputFile << tmp<<"\">\n";
-		// Výpis IP adres
-		outputFile<<"\t\t<ipv4>";
-		for(i=0; i<3; i++){
-			sprintf(tmp,"%d.", arpheader->spa[i]);
-			outputFile << tmp;
+	
+	
+	struct ether_header* etHdr;
+	struct ip6_hdr* ip6Hdr;
+	struct icmp6_hdr* icmp6hdr;
+	
+	etHdr = (struct ether_header*)packetptr;
+
+	
+	switch(ntohs(etHdr->ether_type)){
+		case ETHERTYPE_ARP:
+			l++;
+			arpheader = (struct arphdr_def *)(packetptr+ETH_HDRLEN); /* Point to the ARP header */ 
+		//	printf("Operation: %s\n", (ntohs(arpheader->oper) == ARP_REQUEST)? "ARP Request" : "ARP Reply");
+			if(ntohs(arpheader->oper) == ARP_REPLY)
+			{
+				char tmp[4];
+				// Výpis MAC
+				outputFile<<"\t<host mac=\"";
+				for(i=0; i<5;i++){
+					sprintf(tmp,"%02X", arpheader->sha[i]);
+					outputFile << tmp;
+					
+					if(i % 2 != 0)
+						outputFile<<".";
+				}
+				sprintf(tmp,"%02X", arpheader->sha[5]);
+				outputFile << tmp<<"\">\n";
+				// Výpis IP adres
+				outputFile<<"\t\t<ipv4>";
+				for(i=0; i<3; i++){
+					sprintf(tmp,"%d.", arpheader->spa[i]);
+					outputFile << tmp;
+
+				}
+				sprintf(tmp,"%d", arpheader->spa[3]);
+				outputFile << tmp <<"</ipv4>\n\t</host>\n";		
+			}
+		case ETHERTYPE_IPV6:
+			ip6Hdr = (struct ip6_hdr*)(packetptr+ETH_HDRLEN);
+//			packetptr += IP6_HDRLEN;
+			if(ip6Hdr->ip6_ctlun.ip6_un1.ip6_un1_nxt == IPPROTO_ICMPV6)
+			{
+				h++;
+				cerr<<"SRC: ";
+				printMAC((u_char*)etHdr->ether_shost);
+				cerr<<" | DST: ";
+				printMAC((u_char*)etHdr->ether_dhost);
+				cerr<<endl;
+				
+				//			cerr<<"PLEN: "<<ip6Hdr->
 			
-		}
-		sprintf(tmp,"%d", arpheader->spa[3]);
-		outputFile << tmp <<"</ipv4>\n\t</host>\n";		
+				char ipv6_src[INET6_ADDRSTRLEN];
+				char ipv6_dst[INET6_ADDRSTRLEN];
+				inet_ntop(AF_INET6, &(ip6Hdr->ip6_src), ipv6_src, INET6_ADDRSTRLEN);
+				inet_ntop(AF_INET6, &(ip6Hdr->ip6_dst), ipv6_dst, INET6_ADDRSTRLEN);
+
+				cerr<<"SRC_IP: "<<ipv6_src<<" | DST_IP: "<<ipv6_dst<<endl;;
+			}
+			
+
 	}
+	
+	
+
 	
 }
 
@@ -778,89 +764,7 @@ checksum (uint16_t *addr, int len)
 
   return (answer);
 }
-//
-//// Build IPv6 ICMP pseudo-header and call checksum function (Section 8.1 of RFC 2460).
-//uint16_t
-//icmp6_checksum (struct ip6_hdr *iphdr, struct icmp6_hdr* icmp6hdr, uint8_t *payload, int payloadlen)
-//{
-//  char buf[IP_MAXPACKET];
-//  char *ptr;
-//  int chksumlen = 0;
-//  int i;
-//
-//  ptr = &buf[0];  // ptr points to beginning of buffer buf
-//
-//  // Copy source IP address into buf (128 bits)
-//  memcpy (ptr, &iphdr->ip6_src.s6_addr, sizeof (iphdr->ip6_src.s6_addr));
-//  ptr += sizeof (iphdr->ip6_src);
-//  chksumlen += sizeof (iphdr->ip6_src);
-//
-//  // Copy destination IP address into buf (128 bits)
-//  memcpy (ptr, &iphdr->ip6_dst.s6_addr, sizeof (iphdr->ip6_dst.s6_addr));
-//  ptr += sizeof (iphdr->ip6_dst.s6_addr);
-//  chksumlen += sizeof (iphdr->ip6_dst.s6_addr);
-//
-//  // Copy Upper Layer Packet length into buf (32 bits).
-//  // Should not be greater than 65535 (i.e., 2 bytes).
-//  *ptr = 0; ptr++;
-//  *ptr = 0; ptr++;
-//  *ptr = (ICMP_HDRLEN + payloadlen) / 256;
-//  ptr++;
-//  *ptr = (ICMP_HDRLEN + payloadlen) % 256;
-//  ptr++;
-//  chksumlen += 4;
-//
-//  // Copy zero field to buf (24 bits)
-//  *ptr = 0; ptr++;
-//  *ptr = 0; ptr++;
-//  *ptr = 0; ptr++;
-//  chksumlen += 3;
-//
-//  // Copy next header field to buf (8 bits)
-//  memcpy (ptr, &iphdr->ip6_nxt, sizeof (iphdr->ip6_nxt));
-//  ptr += sizeof (iphdr->ip6_nxt);
-//  chksumlen += sizeof (iphdr->ip6_nxt);
-//
-//  // Copy ICMPv6 type to buf (8 bits)
-//  memcpy (ptr, &icmp6hdr->icmp6_type, sizeof (icmp6hdr->icmp6_type));
-//  ptr += sizeof (icmp6hdr->icmp6_type);
-//  chksumlen += sizeof (icmp6hdr->icmp6_type);
-//
-//  // Copy ICMPv6 code to buf (8 bits)
-//  memcpy (ptr, &icmp6hdr->icmp6_code, sizeof (icmp6hdr->icmp6_code));
-//  ptr += sizeof (icmp6hdr->icmp6_code);
-//  chksumlen += sizeof (icmp6hdr->icmp6_code);
-//
-//  // Copy ICMPv6 ID to buf (16 bits)
-//  memcpy (ptr, &icmp6hdr->icmp6_id, sizeof (icmp6hdr->icmp6_id));
-//  ptr += sizeof (icmp6hdr->icmp6_id);
-//  chksumlen += sizeof (icmp6hdr->icmp6_id);
-//
-//  // Copy ICMPv6 sequence number to buff (16 bits)
-//  memcpy (ptr, &icmp6hdr->icmp6_seq, sizeof (icmp6hdr->icmp6_seq));
-//  ptr += sizeof (icmp6hdr->icmp6_seq);
-//  chksumlen += sizeof (icmp6hdr->icmp6_seq);
-//
-//  // Copy ICMPv6 checksum to buf (16 bits)
-//  // Zero, since we don't know it yet.
-//  *ptr = 0; ptr++;
-//  *ptr = 0; ptr++;
-//  chksumlen += 2;
-//
-//  // Copy ICMPv6 payload to buf
-//  memcpy (ptr, payload, payloadlen * sizeof (uint8_t));
-//  ptr += payloadlen;
-//  chksumlen += payloadlen;
-//
-//  // Pad to the next 16-bit boundary
-//  for (i=0; i<payloadlen%2; i++, ptr++) {
-//    *ptr = 0;
-//    ptr += 1;
-//    chksumlen += 1;
-//  }
-//
-//  return checksum ((uint16_t *) buf, chksumlen);
-//}
+
 uint16_t
 icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_t *payload, int payloadlen)
 {
@@ -943,27 +847,6 @@ icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_t *payloa
   return checksum ((uint16_t *) buf, chksumlen);
 }
 
-// Allocate memory for an array of chars.
-char *
-allocate_strmem (int len)
-{
-  void *tmp;
-
-  if (len <= 0) {
-    fprintf (stderr, "ERROR: Cannot allocate memory because len = %i in allocate_strmem().\n", len);
-    exit (EXIT_FAILURE);
-  }
-
-  tmp = (char *) malloc (len * sizeof (char));
-  if (tmp != NULL) {
-    memset (tmp, 0, len * sizeof (char));
-    return ((char*)tmp);
-  } else {
-    fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_strmem().\n");
-    exit (EXIT_FAILURE);
-  }
-}
-
 // Allocate memory for an array of unsigned chars.
 uint8_t *
 allocate_ustrmem (int len)
@@ -981,48 +864,6 @@ allocate_ustrmem (int len)
     return ((uint8_t *)tmp);
   } else {
     fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_ustrmem().\n");
-    exit (EXIT_FAILURE);
-  }
-}
-
-// Allocate memory for an array of pointers to arrays of unsigned chars.
-uint8_t **
-allocate_ustrmemp (int len)
-{
-  void *tmp;
-
-  if (len <= 0) {
-    fprintf (stderr, "ERROR: Cannot allocate memory because len = %i in allocate_ustrmemp().\n", len);
-    exit (EXIT_FAILURE);
-  }
-
-  tmp = (uint8_t **) malloc (len * sizeof (uint8_t *));
-  if (tmp != NULL) {
-    memset (tmp, 0, len * sizeof (uint8_t *));
-    return ((uint8_t **)tmp);
-  } else {
-    fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_ustrmemp().\n");
-    exit (EXIT_FAILURE);
-  }
-}
-
-// Allocate memory for an array of ints.
-int *
-allocate_intmem (int len)
-{
-  void *tmp;
-
-  if (len <= 0) {
-    fprintf (stderr, "ERROR: Cannot allocate memory because len = %i in allocate_intmem().\n", len);
-    exit (EXIT_FAILURE);
-  }
-
-  tmp = (int *) malloc (len * sizeof (int));
-  if (tmp != NULL) {
-    memset (tmp, 0, len * sizeof (int));
-    return ((int *)tmp);
-  } else {
-    fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_intmem().\n");
     exit (EXIT_FAILURE);
   }
 }
