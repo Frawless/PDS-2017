@@ -341,18 +341,8 @@ void scanNetwork(INTERFACE_INFO* intInfo,pcap_t* descriptor)
 	}
 	else
 	{
-//		tree = (struct T_NODE*) malloc(sizeof(struct T_NODE));
-//		tree->leftChild = NULL;
-//		tree->rightChild = NULL;
-//		memcpy(tree->macAddr ,&intInfo->interfaceMac,ETH_ALEN*(sizeof(u_char)));
-//		memcpy(tree->ipv4 , &intInfo->interfaceAdd,IP_ADDR_LEN*(sizeof(u_char)));
-
-		
-		
-//		 Skenování
 		treeInit(&tree);
 		ARPSniffer(descriptor, (pcap_handler)parsePacket);
-//		usleep(110000000);
 	}
 }
 
@@ -390,12 +380,6 @@ void scanIPv4(INTERFACE_INFO* intInfo)
 	inet_pton(AF_INET,createAddress(intInfo->networkAddress).c_str(),&dst_address.sin_addr);
 	
 	dst_ip = ntohl(dst_address.sin_addr.s_addr);
-	
-
-	cerr<<"Target: "<<createAddress(intInfo->interfaceAdd)<<endl;
-//	printIP(intInfo->networkAddress);
-//	cerr<<intInfo->interfaceAdd<<endl;
-	
 	
 	// Vytvoření socketu.
 	if ((sockfd = socket (AF_INET, SOCK_RAW, IPPROTO_RAW)) < 0) {
@@ -466,7 +450,6 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 		perror ("if_nametoindex() failed to obtain interface index ");
 		exit (EXIT_FAILURE);
 	}
-	printf ("Index for interface %s is %i\n", intInfo->interface, device.sll_ifindex);
 
 	// Set destination MAC address: you need to fill these out
 	dst_mac[0] = 0x33;
@@ -607,7 +590,7 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 		perror ("sendto() failed ");
 		exit (EXIT_FAILURE);
 	}		
-	cerr<<"Odesláno"<<endl;
+//	cerr<<"Odesláno"<<endl;
 	free(send_ether_frame);
 	free(dst_mac);
 	free(data);
@@ -673,19 +656,14 @@ void printIP(u_char * ip)
  */
 void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 {
-	int i=0; 
 	char errbuf[PCAP_ERRBUF_SIZE];    /* Error buffer                           */ 
-	struct pcap_pkthdr pkthdr;        /* Packet information (timestamp,size...) */ 
 	ARP_HEADER *arpheader = NULL;       /* Pointer to the ARP header              */ 
 	arpheader = (ARP_HEADER *) malloc (sizeof (ARP_HEADER));
     memset (arpheader, 0,sizeof (ARP_HEADER));
 	memset(errbuf,0,PCAP_ERRBUF_SIZE); 
-	//cerr<<packetptr<<endl;
-	
 	
 	struct ether_header* etHdr;
 	struct ip6_hdr* ip6Hdr;
-	struct icmp6_hdr* icmp6hdr;
 	
 	etHdr = (struct ether_header*)packetptr;
 
@@ -697,36 +675,8 @@ void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 		//	printf("Operation: %s\n", (ntohs(arpheader->oper) == ARP_REQUEST)? "ARP Request" : "ARP Reply");
 			if(ntohs(arpheader->oper) == ARP_REPLY)
 			{
-//				char tmp[4];
-//				// Výpis MAC
-//				outputFile<<"\t<host mac=\"";
-//				for(i=0; i<5;i++){
-//					sprintf(tmp,"%02X", arpheader->sha[i]);
-//					outputFile << tmp;
-//					
-//					if(i % 2 != 0)
-//						outputFile<<".";
-//				}
-//				sprintf(tmp,"%02X", arpheader->sha[5]);
-//				outputFile << tmp<<"\">\n";
-//				// Výpis IP adres
-//				outputFile<<"\t\t<ipv4>";
-//				for(i=0; i<3; i++){
-//					sprintf(tmp,"%d.", arpheader->spa[i]);
-//					outputFile << tmp;
-//
-//				}
-//				sprintf(tmp,"%d", arpheader->spa[3]);
-//				outputFile << tmp <<"</ipv4>\n\t</host>\n";	
-				cerr<<"ARP-tree"<<endl;
-				
 				u_char *tmpMAC = arpheader->sha;
 				u_char *tmpIP = arpheader->spa;
-				
-//				memcpy(tmpMAC, arpheader->sha, ETH_ADDR_LEN * (sizeof(u_char)));
-//				memcpy(tmpIP, arpheader->spa, IP_ADDR_LEN * (sizeof(u_char)));
-				
-//				search(tree, tmpMAC);
 				insert(&tree,tmpMAC,tmpIP);
 			}
 		case ETHERTYPE_IPV6:
@@ -735,33 +685,18 @@ void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 			if(ip6Hdr->ip6_ctlun.ip6_un1.ip6_un1_nxt == IPPROTO_ICMPV6)
 			{
 				h++;
-//				cerr<<"SRC: ";
-//				printMAC((u_char*)etHdr->ether_shost);
-//				cerr<<" | DST: ";
-//				printMAC((u_char*)etHdr->ether_dhost);
-//				cerr<<endl;
-				
-				//			cerr<<"PLEN: "<<ip6Hdr->
-			
 				char ipv6_src[INET6_ADDRSTRLEN];
 				char ipv6_dst[INET6_ADDRSTRLEN];
 				inet_ntop(AF_INET6, &(ip6Hdr->ip6_src), ipv6_src, INET6_ADDRSTRLEN);
 				inet_ntop(AF_INET6, &(ip6Hdr->ip6_dst), ipv6_dst, INET6_ADDRSTRLEN);
 
-				cerr<<"SRC_IP: "<<ipv6_src<<" | DST_IP: "<<ipv6_dst<<endl;
-				
 				insert(&tree,(u_char*)etHdr->ether_shost, ipv6_src);
-				
-				
-				cerr<<"#######################################"<<endl;
-				cerr<<&tree<<endl;
-				cerr<<"#######################################"<<endl;
-//				search(tree,(u_char*)etHdr->ether_shost);
 			}
 			
 
 	}
-	free(arpheader);
+//	free(arpheader);
+//	free(errbuf);
 }
 
 

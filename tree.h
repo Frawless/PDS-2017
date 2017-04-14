@@ -46,7 +46,7 @@ void treeInit(T_NODE_PTR* root);
 void insert(T_NODE_PTR* root,u_char* macAddr, char* ipv6);
 void insert(T_NODE_PTR* root,u_char* macAddr, u_char* ipv4);
 
-T_NODE_PTR* search(T_NODE_PTR *root, u_char* macAddr);
+T_NODE_PTR search(T_NODE_PTR root, u_char* macAddr);
 void printTree(T_NODE_PTR root, std::ofstream& outputFile);
 void dispose (T_NODE_PTR *root);
 

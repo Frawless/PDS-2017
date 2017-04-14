@@ -114,14 +114,13 @@ int main(int argc, char** argv) {
 	//vytvoření ukazatele na packet o velikosti ARP packetu
 	u_char packetPtr[sizeof(ARP_HEADER)];
 	
-	cerr<<"test na INFO:"<<endl;
 	getInterfaceInfo(intInfo,params.interface);
 	
-	printMAC(intInfo->interfaceMac);
-	printIP(intInfo->interfaceAdd);
-	printIP(intInfo->networkAddress);
-	printIP(intInfo->networkMask);
-	cerr<<"Počet hostů: "<<intInfo->hosts<<endl;
+//	printMAC(intInfo->interfaceMac);
+//	printIP(intInfo->interfaceAdd);
+//	printIP(intInfo->networkAddress);
+//	printIP(intInfo->networkMask);
+//	cerr<<"Počet hostů: "<<intInfo->hosts<<endl;
 
 	
 	if(params.ErrParam != ERR_OK){
@@ -136,7 +135,7 @@ int main(int argc, char** argv) {
 	scanNetwork(intInfo, packetDesc);
 	
 //	free(arpHdr);
-//	free(intInfo);
+	free(intInfo);
 	
 	//ukončení aplikace
 	signal(SIGINT, terminate);
