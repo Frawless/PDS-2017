@@ -10,6 +10,7 @@
  */
 
 #include "pds-library.h"
+#include "tree.h"
 #include <pcap.h>
 #include <arpa/inet.h>
 
@@ -43,7 +44,7 @@
 using namespace std;
 int h = 0;
 int l = 0;
-
+T_NODE_PTR tree;
 
 ofstream outputFile;
 
@@ -124,11 +125,14 @@ void openFile(char* file)
  **/ 
 void ARPSniffer(pcap_t* descriptor, pcap_handler func)
 {
+	
+	//tree = (struct T_NODE*) malloc(sizeof(struct T_NODE)); 
+	//tree = NULL;
+	
+	
+	
 	cerr<<"Odchytávání odpovědí..."<<endl;
-	
-	outputFile<<"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-	outputFile<<"<devices>\n";
-	
+		
 	// Nastavení směru
 //	pcap_setdirection(descriptor,PCAP_D_IN);
 //	spcap_set_timeout(descriptor,10);
@@ -140,12 +144,20 @@ void ARPSniffer(pcap_t* descriptor, pcap_handler func)
 		return;
 	}
 	
+	cerr<<"Loop ukončen"<<endl;
+	
+	outputFile<<"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+	outputFile<<"<devices>\n";
+	printTree(tree, outputFile);
 	outputFile<<"</devices>\n";
 	outputFile.close();
 	
 	cerr<<"Func: capturePacket exit(succes)"<<endl;
 	cerr<<"Celkem ARP paketů: "<<l<<endl;
 	cerr<<"Celkem ICMP paketů: "<<h<<endl;
+	
+	dispose(&tree);
+//	free(tree);
 }
 
 /**
@@ -318,18 +330,29 @@ void scanNetwork(INTERFACE_INFO* intInfo,pcap_t* descriptor)
 	else if (pid == 0)
 	{
 		// Odchytávání
-		ARPSniffer(descriptor, (pcap_handler)parsePacket);
-		exit(EXIT_SUCCESS);
-	}
-	else
-	{
-		// Skenování
+		usleep(1000000);
 		scanIPv4(intInfo);
 		cerr<<"Scan IPv4 rozeslán."<<endl;
 		scanIPv6(intInfo,false);
 		scanIPv6(intInfo,true);
 		cerr<<"Scan IPv6 rozselán."<<endl;
-		usleep(110000000);
+//		ARPSniffer(descriptor, (pcap_handler)parsePacket);
+		exit(EXIT_SUCCESS);
+	}
+	else
+	{
+//		tree = (struct T_NODE*) malloc(sizeof(struct T_NODE));
+//		tree->leftChild = NULL;
+//		tree->rightChild = NULL;
+//		memcpy(tree->macAddr ,&intInfo->interfaceMac,ETH_ALEN*(sizeof(u_char)));
+//		memcpy(tree->ipv4 , &intInfo->interfaceAdd,IP_ADDR_LEN*(sizeof(u_char)));
+
+		
+		
+//		 Skenování
+		treeInit(&tree);
+		ARPSniffer(descriptor, (pcap_handler)parsePacket);
+//		usleep(110000000);
 	}
 }
 
@@ -585,6 +608,9 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 		exit (EXIT_FAILURE);
 	}		
 	cerr<<"Odesláno"<<endl;
+	free(send_ether_frame);
+	free(dst_mac);
+	free(data);
 }
 
 /**
@@ -651,6 +677,8 @@ void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 	char errbuf[PCAP_ERRBUF_SIZE];    /* Error buffer                           */ 
 	struct pcap_pkthdr pkthdr;        /* Packet information (timestamp,size...) */ 
 	ARP_HEADER *arpheader = NULL;       /* Pointer to the ARP header              */ 
+	arpheader = (ARP_HEADER *) malloc (sizeof (ARP_HEADER));
+    memset (arpheader, 0,sizeof (ARP_HEADER));
 	memset(errbuf,0,PCAP_ERRBUF_SIZE); 
 	//cerr<<packetptr<<endl;
 	
@@ -669,27 +697,37 @@ void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 		//	printf("Operation: %s\n", (ntohs(arpheader->oper) == ARP_REQUEST)? "ARP Request" : "ARP Reply");
 			if(ntohs(arpheader->oper) == ARP_REPLY)
 			{
-				char tmp[4];
-				// Výpis MAC
-				outputFile<<"\t<host mac=\"";
-				for(i=0; i<5;i++){
-					sprintf(tmp,"%02X", arpheader->sha[i]);
-					outputFile << tmp;
-					
-					if(i % 2 != 0)
-						outputFile<<".";
-				}
-				sprintf(tmp,"%02X", arpheader->sha[5]);
-				outputFile << tmp<<"\">\n";
-				// Výpis IP adres
-				outputFile<<"\t\t<ipv4>";
-				for(i=0; i<3; i++){
-					sprintf(tmp,"%d.", arpheader->spa[i]);
-					outputFile << tmp;
-
-				}
-				sprintf(tmp,"%d", arpheader->spa[3]);
-				outputFile << tmp <<"</ipv4>\n\t</host>\n";		
+//				char tmp[4];
+//				// Výpis MAC
+//				outputFile<<"\t<host mac=\"";
+//				for(i=0; i<5;i++){
+//					sprintf(tmp,"%02X", arpheader->sha[i]);
+//					outputFile << tmp;
+//					
+//					if(i % 2 != 0)
+//						outputFile<<".";
+//				}
+//				sprintf(tmp,"%02X", arpheader->sha[5]);
+//				outputFile << tmp<<"\">\n";
+//				// Výpis IP adres
+//				outputFile<<"\t\t<ipv4>";
+//				for(i=0; i<3; i++){
+//					sprintf(tmp,"%d.", arpheader->spa[i]);
+//					outputFile << tmp;
+//
+//				}
+//				sprintf(tmp,"%d", arpheader->spa[3]);
+//				outputFile << tmp <<"</ipv4>\n\t</host>\n";	
+				cerr<<"ARP-tree"<<endl;
+				
+				u_char *tmpMAC = arpheader->sha;
+				u_char *tmpIP = arpheader->spa;
+				
+//				memcpy(tmpMAC, arpheader->sha, ETH_ADDR_LEN * (sizeof(u_char)));
+//				memcpy(tmpIP, arpheader->spa, IP_ADDR_LEN * (sizeof(u_char)));
+				
+//				search(tree, tmpMAC);
+				insert(&tree,tmpMAC,tmpIP);
 			}
 		case ETHERTYPE_IPV6:
 			ip6Hdr = (struct ip6_hdr*)(packetptr+ETH_HDRLEN);
@@ -697,11 +735,11 @@ void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 			if(ip6Hdr->ip6_ctlun.ip6_un1.ip6_un1_nxt == IPPROTO_ICMPV6)
 			{
 				h++;
-				cerr<<"SRC: ";
-				printMAC((u_char*)etHdr->ether_shost);
-				cerr<<" | DST: ";
-				printMAC((u_char*)etHdr->ether_dhost);
-				cerr<<endl;
+//				cerr<<"SRC: ";
+//				printMAC((u_char*)etHdr->ether_shost);
+//				cerr<<" | DST: ";
+//				printMAC((u_char*)etHdr->ether_dhost);
+//				cerr<<endl;
 				
 				//			cerr<<"PLEN: "<<ip6Hdr->
 			
@@ -710,15 +748,20 @@ void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 				inet_ntop(AF_INET6, &(ip6Hdr->ip6_src), ipv6_src, INET6_ADDRSTRLEN);
 				inet_ntop(AF_INET6, &(ip6Hdr->ip6_dst), ipv6_dst, INET6_ADDRSTRLEN);
 
-				cerr<<"SRC_IP: "<<ipv6_src<<" | DST_IP: "<<ipv6_dst<<endl;;
+				cerr<<"SRC_IP: "<<ipv6_src<<" | DST_IP: "<<ipv6_dst<<endl;
+				
+				insert(&tree,(u_char*)etHdr->ether_shost, ipv6_src);
+				
+				
+				cerr<<"#######################################"<<endl;
+				cerr<<&tree<<endl;
+				cerr<<"#######################################"<<endl;
+//				search(tree,(u_char*)etHdr->ether_shost);
 			}
 			
 
 	}
-	
-	
-
-	
+	free(arpheader);
 }
 
 

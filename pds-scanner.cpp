@@ -105,10 +105,10 @@ int main(int argc, char** argv) {
 	params = getParams(argc,argv,params);
 	
 	INTERFACE_INFO* intInfo = (INTERFACE_INFO*)calloc(18, sizeof(INTERFACE_INFO));			// Struktura pro potřebné adresy
-	ARP_HEADER* arpHdr = NULL;
-	struct icmp6_hdr* icmphdr = NULL;
-	struct ip6_hdr* iphdr = NULL;
-	
+//	ARP_HEADER* arpHdr = NULL;
+//	struct icmp6_hdr* icmphdr = NULL;
+//	struct ip6_hdr* iphdr = NULL;
+//	
 	
 	ssize_t datalen = 0;
 	//vytvoření ukazatele na packet o velikosti ARP packetu
@@ -134,6 +134,9 @@ int main(int argc, char** argv) {
 	openFile(params.fileName);
 	// Skenování sítě
 	scanNetwork(intInfo, packetDesc);
+	
+//	free(arpHdr);
+//	free(intInfo);
 	
 	//ukončení aplikace
 	signal(SIGINT, terminate);

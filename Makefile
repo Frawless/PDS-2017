@@ -10,7 +10,7 @@
 CC = g++
 CFLAGS = -std=c++98 -Wall -pedantic -W -Wextra -O2
 LOGIN = xstejs24
-FILES = pds-library.o pds-intercept pds-spoof pds-scanner 
+FILES = pds-library.o tree.o pds-intercept pds-spoof pds-scanner 
 PACK = *.c *.h Makefile dokumentace.pdf
 
 %.o: %.cpp %.h
@@ -18,14 +18,14 @@ PACK = *.c *.h Makefile dokumentace.pdf
 
 all : pds-intercept pds-spoof pds-scanner
 
-pds-scanner: pds-scanner.o pds-library.o
-	$(CC) $(CFLAGS) -o $@ pds-scanner.o pds-library.o -lpcap
+pds-scanner: pds-scanner.o pds-library.o tree.o
+	$(CC) $(CFLAGS) -o $@ pds-scanner.o pds-library.o tree.o -lpcap
 	
 pds-spoof: pds-spoof.o pds-library.o
-	$(CC) $(CFLAGS) -o $@ pds-spoof.o pds-library.o -lpcap 
+	$(CC) $(CFLAGS) -o $@ pds-spoof.o pds-library.o tree.o -lpcap 
 	
-pds-intercept: pds-intercept.o pds-library.o
-	$(CC) $(CFLAGS) -o $@ pds-intercept.o pds-library.o -lpcap
+pds-intercept: pds-intercept.o pds-library.o tree.o
+	$(CC) $(CFLAGS) -o $@ pds-intercept.o pds-library.o tree.o -lpcap
 
 	
 pack: clean
