@@ -23,7 +23,7 @@ using namespace std;    // Or using std::string
 typedef std::string NetError;
 
 //pcap socket deskriptor
-//pcap_t* packetDesc;
+pcap_t* packetDesc;
 
 //struktura pro jméno interface
 typedef struct{
@@ -135,6 +135,7 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 	std::string tokenMAC;	// proměnná pro uložení MAC adresy
 
 	int option_index = 0;
+	char tmp[255];
     const char* const short_opts = "i:t:p:a:b:c:d:";
     const option long_opts[] = {
             {"victim1ip", required_argument, 0, 'a'},
@@ -169,7 +170,7 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 				strcpy(params.victim1ip, optarg);
 				tokenIP = optarg;
 				//ověření, zda je zadaná IP syntakticky správně
-				if(!inet_pton(AF_INET,tokenIP.c_str(), &params.victim1ip) && !inet_pton(AF_INET6, tokenIP.c_str(), &params.victim1ip))
+				if(!inet_pton(AF_INET,tokenIP.c_str(), &tmp) && !inet_pton(AF_INET6, tokenIP.c_str(), &tmp))
 					params.ErrParam = ERR_VICIP1;
 				break;
 			case 'b':
@@ -181,7 +182,7 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 				strcpy(params.victim2ip, optarg);
 				tokenIP = optarg;
 				//ověření, zda je zadaná IP syntakticky správně
-				if(!inet_pton(AF_INET,tokenIP.c_str(), &params.victim1ip) && !inet_pton(AF_INET6, tokenIP.c_str(), &params.victim1ip))
+				if(!inet_pton(AF_INET,tokenIP.c_str(), &tmp) && !inet_pton(AF_INET6, tokenIP.c_str(), &tmp))
 					params.ErrParam = ERR_VICIP2;
 				break;	
 			case 'd':
@@ -215,17 +216,68 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 	return params;
 }
 
+
+//	int optindNumber;
+//	int time;
+//	char interface[255];
+//	char protocol[255];
+//	char victim1ip[255];
+//	char victim2ip[255];
+//	char victim1mac[255];
+//	char victim2mac[255];
+
+/**
+ * Funkce pro ukončení snifferu
+ * @param signo
+ **/
+void terminate(int signo)
+{
+    struct pcap_stat stats;
+    if (pcap_stats(packetDesc, &stats) >= 0)
+    {
+		cerr<<"Packets received: "<<stats.ps_recv<<endl;
+		cerr<<"Packets droped: "<<stats.ps_drop<<endl;
+    }
+    //zavření spojení
+    pcap_close(packetDesc);
+	cerr<<"Signo number: "<<signo<<endl;
+	cerr<<"Func: terminate exit(0)"<<endl;	
+    exit(0);
+}
+
 /*
  * 
  */
 int main(int argc, char** argv) {
-
 	PARAMS params = {ERR_OK,-1,0,"","","","","",""};
 	params = getParams(argc,argv,params);
+	
+	INTERFACE_INFO* intInfo = (INTERFACE_INFO*)calloc(18, sizeof(INTERFACE_INFO));			// Struktura pro potřebné adresy
+	// Získání informací o rozhraní pro scan
+	getInterfaceInfo(intInfo,params.interface);
+	
+	//filtr pro ARP a ICMPv6 (scan)
+	//návázání spojení s daným interface
+	packetDesc = openInterface(params.interface, "(arp) or (icmp6)");
+	
+	cerr<<"MAC1: "<<params.victim1mac<<endl;
+	cerr<<"MAC2: "<<params.victim2mac<<endl;
+	cerr<<"IP1: "<<params.victim1ip<<endl;
+	cerr<<"IP2: "<<params.victim2ip<<endl;
+	cerr<<"time: "<<params.time<<endl;
+	cerr<<"Protokol: "<<params.protocol<<endl;
 	
 	if(params.ErrParam != 0){
 		return (EXIT_FAILURE);
 	}
+	
+	if(strcmp("ARP",params.protocol) == 0)
+		poisonARP(intInfo,params.time,params.victim1mac,params.victim2mac,params.victim1ip,params.victim2ip);
+	else if(strcmp("NRP",params.protocol) == 0)
+		cerr<<"Poslat NDP"<<endl;
+	else
+		cerr<<"Nepodporovaný protokol"<<endl;
+	
 	return (EXIT_SUCCESS);
 }
 

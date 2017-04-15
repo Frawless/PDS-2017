@@ -68,6 +68,7 @@ extern "C" {
 #define ETH_ADDR_LEN 6		// Velikost MAC adresy
 #define IP_ADDR_LEN 4		// Velikost IPv4
 #define ETH_HDRLEN 14		// Velikost Ethernetového paketu
+#define ARP_HDR_LEN 28
 #define IP6_HDRLEN 40		// IPv6 header velikost
 #define ICMP_HDRLEN 8		// ICMP header velikost
 #define HOP_HDRLEN 2        // Hop-by-hop velikost
@@ -204,6 +205,21 @@ void printMAC(u_char * mac);
  * @param ip - IPv4 adresa
  */
 void printIP(u_char * ip);
+
+//#################################################################################################################################
+
+void poisonARP(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* ip1, char* ip2);
+
+u_char* createPoisonARP(struct ethhdr* ethHdr,ARP_HEADER* arpHdr,
+				u_char* ptr,
+				ssize_t &datalen,
+				u_char* srcMac,
+				char* srcIp,
+				char* dstMac,
+				char* dstIp,
+				char* SpoofMac);
+
+u_char* createMacAdress(uint8_t* newDstMac, char* mac1);
 
 //#################################################################################################################################
 // Následující funkce jsou převzaty z veřejného zdroje - http://www.pdbuchan.com/rawsock/rawsock.html

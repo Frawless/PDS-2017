@@ -124,15 +124,17 @@ int main(int argc, char** argv) {
 	packetDesc = openInterface(params.interface, "(arp) or (icmp6)");
 	// Otevřený výstupního souboru
 	openFile(params.fileName);
-	// Skenování sítě
-	scanNetwork(intInfo, packetDesc);
-	
-	free(intInfo);
+
 	
 	//ukončení aplikace
 	signal(SIGINT, terminate);
 	signal(SIGTERM, terminate);
 	signal(SIGQUIT, terminate);
+	
+	// Skenování sítě
+	scanNetwork(intInfo, packetDesc);
+	
+	free(intInfo);
 	
 	return (EXIT_SUCCESS);
 }
