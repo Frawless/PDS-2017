@@ -208,15 +208,39 @@ void printIP(u_char * ip);
 
 //#################################################################################################################################
 
+/**
+ * Funkce pro rozesílání otrávených ARP paketů.
+ * @param intInfo - struktura s informacemi o interface
+ * @param time - odesílací čas
+ * @param mac1 - MAC adresa 1. oběti
+ * @param mac2 - MAC adresa 2. oběti
+ * @param ip1 - IP adresa 1. oběti
+ * @param ip2 - IP adresa 2. oběti
+ */
 void poisonARP(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* ip1, char* ip2);
 
-void sendPoisonARP(u_char* srcMac,
+/**
+ * Funkce pro odeslání otráveného/správného ARP paketu.
+ * @param srcMac - zdrojová MAC adresa
+ * @param srcIp - zdrojová IP adresa
+ * @param dstMac - cílová MAC adresa
+ * @param dstIp - cílová IP adresa
+ * @param socket - socket
+ * @param device - informace interface pro odeslání
+ */
+void sendPacketARP(u_char* srcMac,
 				char* srcIp,
 				char* dstMac,
 				char* dstIp,
-				char* SpoofMac,
-				char* interface);
+				int socket,
+				struct sockaddr_ll device);
 
+/**
+ * Funkce pro konverzi MAC adresy ve formátu char na u_char/uint8_t
+ * @param outMac - ukazatel na místo v paměti pro výsledek
+ * @param inMac - vstupní MAC adresa (char)
+ * @return 
+ */
 u_char* createMacAdress(uint8_t* newDstMac, char* mac1);
 
 //#################################################################################################################################

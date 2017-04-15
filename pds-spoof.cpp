@@ -17,6 +17,11 @@
 #include <fstream>
 #include <sstream>
 
+#include <net/if.h>
+#include <sys/socket.h>
+#include <linux/if_packet.h>
+#include <net/ethernet.h> /* the L2 protocols */
+
 #include "pds-library.h"
 
 using namespace std;    // Or using std::string
@@ -24,6 +29,13 @@ typedef std::string NetError;
 
 //pcap socket deskriptor
 pcap_t* packetDesc;
+char interface[255];
+char protocol[255];
+char victim1ip[255];
+char victim2ip[255];
+char victim1mac[255];
+char victim2mac[255];
+u_char intMac[6];
 
 //struktura pro jméno interface
 typedef struct{
@@ -217,15 +229,6 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 }
 
 
-//	int optindNumber;
-//	int time;
-//	char interface[255];
-//	char protocol[255];
-//	char victim1ip[255];
-//	char victim2ip[255];
-//	char victim1mac[255];
-//	char victim2mac[255];
-
 /**
  * Funkce pro ukončení snifferu
  * @param signo
@@ -233,11 +236,55 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 void terminate(int signo)
 {
     struct pcap_stat stats;
-    if (pcap_stats(packetDesc, &stats) >= 0)
-    {
-		cerr<<"Packets received: "<<stats.ps_recv<<endl;
-		cerr<<"Packets droped: "<<stats.ps_drop<<endl;
-    }
+		
+	ARP_HEADER arphdr;
+	int status, bytes, sockfd;
+	ssize_t datalen = 0;
+	uint8_t *src_mac, *dstMac, *ethFrame;
+	struct addrinfo hints, *res;
+	struct sockaddr_in *ipv4;
+	struct sockaddr_ll device;
+	
+	// Alokace paměti
+	src_mac = allocate_ustrmem (ETH_ADDR_LEN);
+	dstMac = allocate_ustrmem (ETH_ADDR_LEN);
+	ethFrame = allocate_ustrmem (IP_MAXPACKET);
+		
+	memset (&device, 0, sizeof (device));
+	if ((device.sll_ifindex = if_nametoindex (interface)) == 0) {
+		perror ("if_nametoindex() failed to obtain interface index ");
+		exit (EXIT_FAILURE);
+	}
+	
+	// Konverze char* na u_char pro MAC adresy
+	u_char victim1tmp[ETH_ADDR_LEN];
+	createMacAdress(victim1tmp,victim1mac);
+	u_char victim2tmp[ETH_ADDR_LEN];
+	createMacAdress(victim2tmp,victim2mac);
+	
+	// Vytvoření socketu
+	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+		perror ("socket() failed ");
+		exit (EXIT_FAILURE);
+	}
+	
+	// Vrácení zpátky ARP
+	if(strcmp(protocol,"ARP") == 0)
+	{
+		device.sll_family = AF_PACKET;
+		memcpy (device.sll_addr, intMac, 6 * sizeof (uint8_t));
+		device.sll_halen = 6;
+			
+		// Zasílání paketů oběma obětem
+		sendPacketARP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd, device);
+		sendPacketARP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd, device);
+	}
+	else
+		cerr<<"Ukončit NDP"<<endl;
+
+
+	close(sockfd);
+
     //zavření spojení
     pcap_close(packetDesc);
 	cerr<<"Signo number: "<<signo<<endl;
@@ -267,9 +314,23 @@ int main(int argc, char** argv) {
 	cerr<<"time: "<<params.time<<endl;
 	cerr<<"Protokol: "<<params.protocol<<endl;
 	
+	// Globální proměnné pro správné ukončení
+	memcpy(victim1mac,params.victim1mac, 255);
+	memcpy(victim2mac,params.victim2mac, 255);
+	memcpy(victim1ip,params.victim1ip, 255);
+	memcpy(victim2ip,params.victim2ip, 255);
+	memcpy(protocol,params.protocol, 255);
+	memcpy(interface,params.interface, 255);
+	memcpy(intMac,intInfo->interfaceMac, 6*sizeof(u_char));
+	
 	if(params.ErrParam != 0){
 		return (EXIT_FAILURE);
 	}
+	
+	//ukončení aplikace
+	signal(SIGINT, terminate);
+	signal(SIGTERM, terminate);
+	signal(SIGQUIT, terminate);	
 	
 	if(strcmp("ARP",params.protocol) == 0)
 		poisonARP(intInfo,params.time,params.victim1mac,params.victim2mac,params.victim1ip,params.victim2ip);

