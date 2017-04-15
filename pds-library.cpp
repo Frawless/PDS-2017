@@ -904,16 +904,6 @@ void poisonARP(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* 
 		 // Sender hardware address (48 bits): MAC address
 		 memcpy (&arphdr.sha, intInfo->interfaceMac, ETH_ADDR_LEN * sizeof (uint8_t));
 
-		 // Sender protocol address (32 bits)
-		 // See getaddrinfo() resolution of src_ip.
-
-		 // Target hardware address (48 bits): zero, since we don't know it yet.
-//		 memset (&arphdr.tha, 0, 6 * sizeof (uint8_t));
-
-		 // Target protocol address (32 bits)
-		 // See getaddrinfo() resolution of target.
-
-		 // Fill out ethernet frame header.
 
 		 // Ethernet frame length = ethernet header (MAC + MAC + ethernet type) + ethernet data (ARP header)
 		 datalen = ETH_HDRLEN + ARP_HDR_LEN;
