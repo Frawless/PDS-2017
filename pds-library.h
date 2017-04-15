@@ -210,14 +210,12 @@ void printIP(u_char * ip);
 
 void poisonARP(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* ip1, char* ip2);
 
-u_char* createPoisonARP(struct ethhdr* ethHdr,ARP_HEADER* arpHdr,
-				u_char* ptr,
-				ssize_t &datalen,
-				u_char* srcMac,
+void sendPoisonARP(u_char* srcMac,
 				char* srcIp,
 				char* dstMac,
 				char* dstIp,
-				char* SpoofMac);
+				char* SpoofMac,
+				char* interface);
 
 u_char* createMacAdress(uint8_t* newDstMac, char* mac1);
 
