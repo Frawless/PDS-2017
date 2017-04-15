@@ -50,9 +50,9 @@ ofstream outputFile;
 
 
 /**
- * Funkce pro otevření požadovaného interfacu
- * @param interface jmeno interface
- * @param secondPar
+ * Funkce pro otevření požadovaného rozhraní.
+ * @param interface - jmeno interface
+ * @param secondPar - filter pro odchytávání
  **/ 
 pcap_t* openInterface(char* interface, const char* secondPar)
 {
@@ -112,58 +112,10 @@ pcap_t* openInterface(char* interface, const char* secondPar)
 	return packetDesc;
 }
 
-
-void openFile(char* file)
-{
-	outputFile.open(file,ios::out | ios::trunc);
-}
-
-
 /**
- * Funkce pro odchytávání ARP paketů
- * @param descriptor paket deskriptor
- **/ 
-void ARPSniffer(pcap_t* descriptor, pcap_handler func)
-{
-	
-	//tree = (struct T_NODE*) malloc(sizeof(struct T_NODE)); 
-	//tree = NULL;
-	
-	
-	
-	cerr<<"Odchytávání odpovědí..."<<endl;
-		
-	// Nastavení směru
-//	pcap_setdirection(descriptor,PCAP_D_IN);
-//	spcap_set_timeout(descriptor,10);
-	
-	//funkce pro chytání packetů - dokud není program ukončen
-	if(pcap_dispatch(descriptor, -1, func, NULL) < 0)
-	{
-		cerr << "pcap_loop() failed: " << pcap_geterr(descriptor)<<endl;
-		return;
-	}
-	
-	cerr<<"Loop ukončen"<<endl;
-	
-	outputFile<<"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-	outputFile<<"<devices>\n";
-	printTree(tree, outputFile);
-	outputFile<<"</devices>\n";
-	outputFile.close();
-	
-	cerr<<"Func: capturePacket exit(succes)"<<endl;
-	cerr<<"Celkem ARP paketů: "<<l<<endl;
-	cerr<<"Celkem ICMP paketů: "<<h<<endl;
-	
-	dispose(&tree);
-//	free(tree);
-}
-
-/**
- * 
- * @param intInfo
- * @param interface
+ * Funkce pro získání potřebných údajů o užívnaém rozhraní - IP adresy, MAC.
+ * @param intInfo - ukazatel na strukturu pro uložení dat
+ * @param interface - název rozhranní
  */
 void getInterfaceInfo(INTERFACE_INFO* intInfo, char * interface)
 {
@@ -255,10 +207,7 @@ void getInterfaceInfo(INTERFACE_INFO* intInfo, char * interface)
 			// Získání IPv6 adress
 			if (ifa->ifa_addr->sa_family == AF_INET6) {
 				// is a valid IP6 Address
-				tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
-//				char addressBuffer[INET6_ADDRSTRLEN];
-//				inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
-//				printf("%s IP Address %s\n", ifa->ifa_name, addressBuffer);
+				tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;;
 				if(ipCount == 0)
 					inet_ntop(AF_INET6, tmpAddrPtr, intInfo->interfaceAddv6a, INET6_ADDRSTRLEN);
 				else if (ipCount == 1)
@@ -274,13 +223,41 @@ void getInterfaceInfo(INTERFACE_INFO* intInfo, char * interface)
 }
 
 /**
- * 
- * @param intInfo
- * @param arpHdr
- * @param targetAddress
- * @param ptr
- * @param datalen
- * @param sizeofARP
+ * Funkce pro otevření výstupního souboru.
+ * @param file - název souboru
+ */
+void openFile(char* file)
+{
+	outputFile.open(file,ios::out | ios::trunc);
+}
+
+/**
+ * Funkce pro převod adresy z binární reprezentace na string.
+ * @param input - vstupní adresa v u_char
+ * @return  - adresa v podobě stringu
+ */
+std::string createAddress(u_char * input)
+{
+	char tmp[3];
+	std::string output;
+	
+	for(int i =0; i < 3; i++){
+		sprintf(&tmp[0], "%d", input[i]);
+		output += tmp;
+		output += ".";
+	}
+	sprintf(&tmp[0], "%d", input[3]);
+	output += tmp;
+
+	return output;
+}
+
+/**
+ * Funkce pro vytvoření ARP paketu pro skenování,
+ * @param intInfo - struktura s informacemi o rozhraní
+ * @param arpHdr - ukazatel na místo v paměti pro ARP hlavičku
+ * @param ptr - ukazatel na paketu
+ * @param datalen - délka 
  * @return 
  */
 u_char* createARP(INTERFACE_INFO* intInfo,
@@ -312,14 +289,14 @@ u_char* createARP(INTERFACE_INFO* intInfo,
 }
 
 /**
- * 
- * @param intInfo
- * @param datalen
- * @param packetPtr
+ * Funkce pro skenování sítě pomocí ARP a ICMPv6. 
+ * Ve funkci je vytvořen nový proces aby bylo možné odchytávat pakety již během posílání.
+ * @param intInfo - struktura s informacemi o rozhraní
+ * @param descriptor - ukazatel na paket
  */
 void scanNetwork(INTERFACE_INFO* intInfo,pcap_t* descriptor)
 {
-
+	// Tvorba nového procesu
 	pid_t pid = fork();
 	
 	if(pid < 0)
@@ -329,7 +306,7 @@ void scanNetwork(INTERFACE_INFO* intInfo,pcap_t* descriptor)
 	}
 	else if (pid == 0)
 	{
-		// Odchytávání
+		// Zasílání skenovacích paketů
 		usleep(1000000);
 		scanIPv4(intInfo);
 		cerr<<"Scan IPv4 rozeslán."<<endl;
@@ -341,14 +318,18 @@ void scanNetwork(INTERFACE_INFO* intInfo,pcap_t* descriptor)
 	}
 	else
 	{
-		treeInit(&tree);
+		treeInit(&tree);	// Inicializace stromu
+		// Odchytávání potřebných paketů
 		ARPSniffer(descriptor, (pcap_handler)parsePacket);
+		// Zrušení stromu
+		dispose(&tree);
 	}
 }
 
 /**
- * 
- * @param intInfo
+ * Funkce pro vytvoření a zaslání všechn ptřebných ARP paketů do sítě. 
+ * Ze získané adresy sítě a počtu hostů jsou zasílány pakety všem.
+ * @param intInfo - struktura s informacemi o rozhraní
  */
 void scanIPv4(INTERFACE_INFO* intInfo)
 {
@@ -373,9 +354,6 @@ void scanIPv4(INTERFACE_INFO* intInfo)
 	dst_address.sin_port = htons(520);
 	dst_address.sin_family = AF_INET;
 	
-//	cerr<<"Test na hodnotu:";
-//	printIP(intInfo->interfaceAdd);
-	
 	inet_pton(AF_INET,createAddress(intInfo->interfaceAdd).c_str(),&src_address.sin_addr);
 	inet_pton(AF_INET,createAddress(intInfo->networkAddress).c_str(),&dst_address.sin_addr);
 	
@@ -394,7 +372,7 @@ void scanIPv4(INTERFACE_INFO* intInfo)
 	{
 		dst_ip = ntohl(dst_address.sin_addr.s_addr);
 
-		inet_pton(AF_INET, my_ntoa(dst_ip+1),&dst_address.sin_addr);
+		inet_pton(AF_INET, myNtoa(dst_ip+1),&dst_address.sin_addr);
 		//bind socketu
 		if(bind(sockfd, (struct sockaddr *)&src_address, sizeof(src_address)) < 0)
 		{
@@ -418,9 +396,11 @@ void scanIPv4(INTERFACE_INFO* intInfo)
 }
 
 /**
- * 
- * @param intInfo
- * @param malform
+ * Funkce pro zaslání ping paketů pro sken IPv6 zařízení.
+ * Ne všechny zařízení na PING odpoví, proto je zavedena druhá verze paketu s vadným paketem.
+ * V případě malform paketu je zaslán poškozený paket, na který odpoví zařízení pomocí ICMPv6.
+ * @param intInfo - struktura s informacemi o rozhraní
+ * @param malform - příznak, zda paket má být požkozen nebo ne
  */
 void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 {
@@ -597,67 +577,49 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 }
 
 /**
- * 
- * @param input
- * @return 
- */
-std::string createAddress(u_char * input)
+ * Funkce pro odchytávání ARP paketů pro sken.
+ * @param descriptor - ukazatle na paketu
+ * @param func - funkce pro zpracování paketů
+ **/ 
+void ARPSniffer(pcap_t* descriptor, pcap_handler func)
 {
-//	cerr<<"Createa adress IP: ";
+	cerr<<"Odchytávání odpovědí..."<<endl;
+		
+	// Nastavení směru
+	pcap_setdirection(descriptor,PCAP_D_IN);
+//	spcap_set_timeout(descriptor,10);
 	
-	char tmp[3];
-	std::string output;
-	
-	for(int i =0; i < 3; i++){
-//		output += input[i];
-		sprintf(&tmp[0], "%d", input[i]);
-		output += tmp;
-		output += ".";
+	//funkce pro chytání packetů - 2 minuty timeout
+	if(pcap_dispatch(descriptor, -1, func, NULL) < 0)
+	{
+		cerr << "pcap_loop() failed: " << pcap_geterr(descriptor)<<endl;
+		return;
 	}
-////	output  += input[3];
-	sprintf(&tmp[0], "%d", input[3]);
-	output += tmp;
-
-//	cerr<<"Output: "<<output<<endl;
 	
-	return output;
+	outputFile<<"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+	outputFile<<"<devices>\n";
+	printTree(tree, outputFile);
+	outputFile<<"</devices>\n";
+	outputFile.close();
+	
+	cerr<<"Func: capturePacket exit(succes)"<<endl;
+	cerr<<"Celkem ARP paketů: "<<l<<endl;
+	cerr<<"Celkem ICMP paketů: "<<h<<endl;
+	
+	
 }
 
 
 /**
- * Funkce pro vypsání MAC adresy
- * @param mac
- */
-void printMAC(u_char * mac)
-{
-//	cerr<<"MAC adresa užívaného rozhranní:";
-	for(int i = 0; i < 5; i++)
-		fprintf (stderr,"%02x:", mac[i]);
-	fprintf (stderr,"%02x", mac[5]);
-}
-
-/**
- * Funkce pro vypsání IP adresy
- * @param mac
- */
-void printIP(u_char * ip)
-{
-	cerr<<"IP adresa užívaného rozhranní:";
-	for(int i = 0; i < 3; i++)
-		fprintf (stderr,"%d.", ip[i]);
-	fprintf (stderr,"%d\n", ip[3]);
-}
-
-/**
- * 
+ * Funkce pro zpracování paketů.
  * @param 
  * @param 
- * @param packetptr
+ * @param packetptr - ukazatel na paket
  */
 void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 {
-	char errbuf[PCAP_ERRBUF_SIZE];    /* Error buffer                           */ 
-	ARP_HEADER *arpheader = NULL;       /* Pointer to the ARP header              */ 
+	char errbuf[PCAP_ERRBUF_SIZE];		// Error buffer
+	ARP_HEADER *arpheader = NULL;       // Ukazatel na ARP hlavičku
 	arpheader = (ARP_HEADER *) malloc (sizeof (ARP_HEADER));
     memset (arpheader, 0,sizeof (ARP_HEADER));
 	memset(errbuf,0,PCAP_ERRBUF_SIZE); 
@@ -669,19 +631,20 @@ void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 
 	
 	switch(ntohs(etHdr->ether_type)){
+		// ARP
 		case ETHERTYPE_ARP:
 			l++;
-			arpheader = (struct arphdr_def *)(packetptr+ETH_HDRLEN); /* Point to the ARP header */ 
-		//	printf("Operation: %s\n", (ntohs(arpheader->oper) == ARP_REQUEST)? "ARP Request" : "ARP Reply");
+			arpheader = (struct arphdr_def *)(packetptr+ETH_HDRLEN);	// Namapování ARP hlavičky
 			if(ntohs(arpheader->oper) == ARP_REPLY)
 			{
 				u_char *tmpMAC = arpheader->sha;
 				u_char *tmpIP = arpheader->spa;
+				// Vložení zpracovaných údajů do stromu
 				insert(&tree,tmpMAC,tmpIP);
 			}
+		// IPv	
 		case ETHERTYPE_IPV6:
 			ip6Hdr = (struct ip6_hdr*)(packetptr+ETH_HDRLEN);
-//			packetptr += IP6_HDRLEN;
 			if(ip6Hdr->ip6_ctlun.ip6_un1.ip6_un1_nxt == IPPROTO_ICMPV6)
 			{
 				h++;
@@ -690,158 +653,200 @@ void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr)
 				inet_ntop(AF_INET6, &(ip6Hdr->ip6_src), ipv6_src, INET6_ADDRSTRLEN);
 				inet_ntop(AF_INET6, &(ip6Hdr->ip6_dst), ipv6_dst, INET6_ADDRSTRLEN);
 
+				// Vložení zpracovaných údajů do stromu
 				insert(&tree,(u_char*)etHdr->ether_shost, ipv6_src);
 			}
-			
-
 	}
-//	free(arpheader);
-//	free(errbuf);
+}
+
+
+/**
+ * Funkce pro vypsání MAC adresy.
+ * @param mac - MAC adresa
+ */
+void printMAC(u_char * mac)
+{
+//	cerr<<"MAC adresa užívaného rozhranní:";
+	for(int i = 0; i < 5; i++)
+		fprintf (stderr,"%02x:", mac[i]);
+	fprintf (stderr,"%02x", mac[5]);
+}
+
+/**
+ * Funkce pro vypsání IPv4 adresy.
+ * @param ip - IPv4 adresa
+ */
+void printIP(u_char * ip)
+{
+	cerr<<"IP adresa užívaného rozhranní:";
+	for(int i = 0; i < 3; i++)
+		fprintf (stderr,"%d.", ip[i]);
+	fprintf (stderr,"%d\n", ip[3]);
 }
 
 
 //#################################################################################################################################
-// Převzaný kód
-/* Convert the given ip address in native byte order to a printable string */
-char *
-my_ntoa(unsigned long ip) {
+// Následující funkce jsou převzaty z veřejného zdroje - http://www.pdbuchan.com/rawsock/rawsock.html
+
+/**
+ * Funkce pro převod IP adresy z long na IPv4.
+ * @param ip - vstupní počet bitů
+ * @return - ip adresa
+ */
+char * myNtoa(unsigned long ip) {
 	struct in_addr addr;
 	addr.s_addr = htonl(ip);
 	return inet_ntoa(addr);
 }
 
+/**
+ * Funkce pro výpočet checksumu u IPv6 paketů.
+ * @param addr - adresa
+ * @param len - délka
+ * @return - spočítaný checksum
+ */
 // Computing the internet checksum (RFC 1071).
 // Note that the internet checksum does not preclude collisions.
-uint16_t
-checksum (uint16_t *addr, int len)
+uint16_t checksum (uint16_t *addr, int len)
 {
-  int count = len;
-  register uint32_t sum = 0;
-  uint16_t answer = 0;
+	int count = len;
+	register uint32_t sum = 0;
+	uint16_t answer = 0;
 
-  // Sum up 2-byte values until none or only one byte left.
-  while (count > 1) {
-    sum += *(addr++);
-    count -= 2;
-  }
+	// Sum up 2-byte values until none or only one byte left.
+	while (count > 1) {
+		sum += *(addr++);
+		count -= 2;
+	}
 
-  // Add left-over byte, if any.
-  if (count > 0) {
-    sum += *(uint8_t *) addr;
-  }
+	// Add left-over byte, if any.
+	if (count > 0) {
+		sum += *(uint8_t *) addr;
+	}
 
-  // Fold 32-bit sum into 16 bits; we lose information by doing this,
-  // increasing the chances of a collision.
-  // sum = (lower 16 bits) + (upper 16 bits shifted right 16 bits)
-  while (sum >> 16) {
-    sum = (sum & 0xffff) + (sum >> 16);
-  }
+	// Fold 32-bit sum into 16 bits; we lose information by doing this,
+	// increasing the chances of a collision.
+	// sum = (lower 16 bits) + (upper 16 bits shifted right 16 bits)
+	while (sum >> 16) {
+		sum = (sum & 0xffff) + (sum >> 16);
+	}
 
-  // Checksum is one's compliment of sum.
-  answer = ~sum;
+	// Checksum is one's compliment of sum.
+	answer = ~sum;
 
-  return (answer);
+	return (answer);
 }
 
-uint16_t
-icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_t *payload, int payloadlen)
+/**
+ * Funkce pro výpočet checksumu u paketu ICMPv6
+ * @param iphdr - ip hlavička
+ * @param icmp6hdr - icmp hlavička
+ * @param payload 
+ * @param payloadlen
+ * @return - checksum
+ */
+uint16_t icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_t *payload, int payloadlen)
 {
-  char buf[IP_MAXPACKET];
-  char *ptr;
-  int chksumlen = 0;
-  int i;
+	char buf[IP_MAXPACKET];
+	char *ptr;
+	int chksumlen = 0;
+	int i;
 
-  ptr = &buf[0];  // ptr points to beginning of buffer buf
+	ptr = &buf[0];  // ptr points to beginning of buffer buf
 
-  // Copy source IP address into buf (128 bits)
-  memcpy (ptr, &iphdr.ip6_src.s6_addr, sizeof (iphdr.ip6_src.s6_addr));
-  ptr += sizeof (iphdr.ip6_src);
-  chksumlen += sizeof (iphdr.ip6_src);
+	// Copy source IP address into buf (128 bits)
+	memcpy (ptr, &iphdr.ip6_src.s6_addr, sizeof (iphdr.ip6_src.s6_addr));
+	ptr += sizeof (iphdr.ip6_src);
+	chksumlen += sizeof (iphdr.ip6_src);
 
-  // Copy destination IP address into buf (128 bits)
-  memcpy (ptr, &iphdr.ip6_dst.s6_addr, sizeof (iphdr.ip6_dst.s6_addr));
-  ptr += sizeof (iphdr.ip6_dst.s6_addr);
-  chksumlen += sizeof (iphdr.ip6_dst.s6_addr);
+	// Copy destination IP address into buf (128 bits)
+	memcpy (ptr, &iphdr.ip6_dst.s6_addr, sizeof (iphdr.ip6_dst.s6_addr));
+	ptr += sizeof (iphdr.ip6_dst.s6_addr);
+	chksumlen += sizeof (iphdr.ip6_dst.s6_addr);
 
-  // Copy Upper Layer Packet length into buf (32 bits).
-  // Should not be greater than 65535 (i.e., 2 bytes).
-  *ptr = 0; ptr++;
-  *ptr = 0; ptr++;
-  *ptr = (ICMP_HDRLEN + payloadlen) / 256;
-  ptr++;
-  *ptr = (ICMP_HDRLEN + payloadlen) % 256;
-  ptr++;
-  chksumlen += 4;
+	// Copy Upper Layer Packet length into buf (32 bits).
+	// Should not be greater than 65535 (i.e., 2 bytes).
+	*ptr = 0; ptr++;
+	*ptr = 0; ptr++;
+	*ptr = (ICMP_HDRLEN + payloadlen) / 256;
+	ptr++;
+	*ptr = (ICMP_HDRLEN + payloadlen) % 256;
+	ptr++;
+	chksumlen += 4;
 
-  // Copy zero field to buf (24 bits)
-  *ptr = 0; ptr++;
-  *ptr = 0; ptr++;
-  *ptr = 0; ptr++;
-  chksumlen += 3;
+	// Copy zero field to buf (24 bits)
+	*ptr = 0; ptr++;
+	*ptr = 0; ptr++;
+	*ptr = 0; ptr++;
+	chksumlen += 3;
 
-  // Copy next header field to buf (8 bits)
-  memcpy (ptr, &iphdr.ip6_nxt, sizeof (iphdr.ip6_nxt));
-  ptr += sizeof (iphdr.ip6_nxt);
-  chksumlen += sizeof (iphdr.ip6_nxt);
+	// Copy next header field to buf (8 bits)
+	memcpy (ptr, &iphdr.ip6_nxt, sizeof (iphdr.ip6_nxt));
+	ptr += sizeof (iphdr.ip6_nxt);
+	chksumlen += sizeof (iphdr.ip6_nxt);
 
-  // Copy ICMPv6 type to buf (8 bits)
-  memcpy (ptr, &icmp6hdr.icmp6_type, sizeof (icmp6hdr.icmp6_type));
-  ptr += sizeof (icmp6hdr.icmp6_type);
-  chksumlen += sizeof (icmp6hdr.icmp6_type);
+	// Copy ICMPv6 type to buf (8 bits)
+	memcpy (ptr, &icmp6hdr.icmp6_type, sizeof (icmp6hdr.icmp6_type));
+	ptr += sizeof (icmp6hdr.icmp6_type);
+	chksumlen += sizeof (icmp6hdr.icmp6_type);
 
-  // Copy ICMPv6 code to buf (8 bits)
-  memcpy (ptr, &icmp6hdr.icmp6_code, sizeof (icmp6hdr.icmp6_code));
-  ptr += sizeof (icmp6hdr.icmp6_code);
-  chksumlen += sizeof (icmp6hdr.icmp6_code);
+	// Copy ICMPv6 code to buf (8 bits)
+	memcpy (ptr, &icmp6hdr.icmp6_code, sizeof (icmp6hdr.icmp6_code));
+	ptr += sizeof (icmp6hdr.icmp6_code);
+	chksumlen += sizeof (icmp6hdr.icmp6_code);
 
-  // Copy ICMPv6 ID to buf (16 bits)
-  memcpy (ptr, &icmp6hdr.icmp6_id, sizeof (icmp6hdr.icmp6_id));
-  ptr += sizeof (icmp6hdr.icmp6_id);
-  chksumlen += sizeof (icmp6hdr.icmp6_id);
+	// Copy ICMPv6 ID to buf (16 bits)
+	memcpy (ptr, &icmp6hdr.icmp6_id, sizeof (icmp6hdr.icmp6_id));
+	ptr += sizeof (icmp6hdr.icmp6_id);
+	chksumlen += sizeof (icmp6hdr.icmp6_id);
 
-  // Copy ICMPv6 sequence number to buff (16 bits)
-  memcpy (ptr, &icmp6hdr.icmp6_seq, sizeof (icmp6hdr.icmp6_seq));
-  ptr += sizeof (icmp6hdr.icmp6_seq);
-  chksumlen += sizeof (icmp6hdr.icmp6_seq);
+	// Copy ICMPv6 sequence number to buff (16 bits)
+	memcpy (ptr, &icmp6hdr.icmp6_seq, sizeof (icmp6hdr.icmp6_seq));
+	ptr += sizeof (icmp6hdr.icmp6_seq);
+	chksumlen += sizeof (icmp6hdr.icmp6_seq);
 
-  // Copy ICMPv6 checksum to buf (16 bits)
-  // Zero, since we don't know it yet.
-  *ptr = 0; ptr++;
-  *ptr = 0; ptr++;
-  chksumlen += 2;
+	// Copy ICMPv6 checksum to buf (16 bits)
+	// Zero, since we don't know it yet.
+	*ptr = 0; ptr++;
+	*ptr = 0; ptr++;
+	chksumlen += 2;
 
-  // Copy ICMPv6 payload to buf
-  memcpy (ptr, payload, payloadlen * sizeof (uint8_t));
-  ptr += payloadlen;
-  chksumlen += payloadlen;
+	// Copy ICMPv6 payload to buf
+	memcpy (ptr, payload, payloadlen * sizeof (uint8_t));
+	ptr += payloadlen;
+	chksumlen += payloadlen;
 
-  // Pad to the next 16-bit boundary
-  for (i=0; i<payloadlen%2; i++, ptr++) {
-    *ptr = 0;
-    ptr += 1;
-    chksumlen += 1;
-  }
+	// Pad to the next 16-bit boundary
+	for (i=0; i<payloadlen%2; i++, ptr++) {
+		*ptr = 0;
+		ptr += 1;
+		chksumlen += 1;
+	}
 
-  return checksum ((uint16_t *) buf, chksumlen);
+	return checksum ((uint16_t *) buf, chksumlen);
 }
 
+/**
+ * Funkce pro alokování paměti pro u_char proměnné.
+ * @param len - velikost proměnné
+ * @return - ukazatel do paměti
+ */
 // Allocate memory for an array of unsigned chars.
-uint8_t *
-allocate_ustrmem (int len)
+uint8_t * allocate_ustrmem (int len)
 {
-  void *tmp;
+	void *tmp;
 
-  if (len <= 0) {
-    fprintf (stderr, "ERROR: Cannot allocate memory because len = %i in allocate_ustrmem().\n", len);
-    exit (EXIT_FAILURE);
-  }
+	if (len <= 0) {
+		fprintf (stderr, "ERROR: Cannot allocate memory because len = %i in allocate_ustrmem().\n", len);
+		exit (EXIT_FAILURE);
+	}
 
-  tmp = (uint8_t *) malloc (len * sizeof (uint8_t));
-  if (tmp != NULL) {
-    memset (tmp, 0, len * sizeof (uint8_t));
-    return ((uint8_t *)tmp);
-  } else {
-    fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_ustrmem().\n");
-    exit (EXIT_FAILURE);
-  }
+	tmp = (uint8_t *) malloc (len * sizeof (uint8_t));
+	if (tmp != NULL) {
+		memset (tmp, 0, len * sizeof (uint8_t));
+		return ((uint8_t *)tmp);
+	} else {
+		fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_ustrmem().\n");
+		exit (EXIT_FAILURE);
+	}
 }

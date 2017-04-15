@@ -105,15 +105,7 @@ int main(int argc, char** argv) {
 	params = getParams(argc,argv,params);
 	
 	INTERFACE_INFO* intInfo = (INTERFACE_INFO*)calloc(18, sizeof(INTERFACE_INFO));			// Struktura pro potřebné adresy
-//	ARP_HEADER* arpHdr = NULL;
-//	struct icmp6_hdr* icmphdr = NULL;
-//	struct ip6_hdr* iphdr = NULL;
-//	
-	
-	ssize_t datalen = 0;
-	//vytvoření ukazatele na packet o velikosti ARP packetu
-	u_char packetPtr[sizeof(ARP_HEADER)];
-	
+	// Získání informací o rozhraní pro scan
 	getInterfaceInfo(intInfo,params.interface);
 	
 //	printMAC(intInfo->interfaceMac);
@@ -122,19 +114,19 @@ int main(int argc, char** argv) {
 //	printIP(intInfo->networkMask);
 //	cerr<<"Počet hostů: "<<intInfo->hosts<<endl;
 
-	
+	// Vyhodnocení chybového stavu
 	if(params.ErrParam != ERR_OK){
 		return (EXIT_FAILURE);
 	}
 	
-	//filtr pro ARP a NDP
+	//filtr pro ARP a ICMPv6 (scan)
 	//návázání spojení s daným interface
 	packetDesc = openInterface(params.interface, "(arp) or (icmp6)");
+	// Otevřený výstupního souboru
 	openFile(params.fileName);
 	// Skenování sítě
 	scanNetwork(intInfo, packetDesc);
 	
-//	free(arpHdr);
 	free(intInfo);
 	
 	//ukončení aplikace

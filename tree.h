@@ -41,14 +41,42 @@ typedef struct T_NODE {
 	struct T_NODE *rightChild;
 } *T_NODE_PTR;
 
+/**
+ * Funkce pro inicializaci stromu.
+ * @param root ukaaztel strom
+ */
 void treeInit(T_NODE_PTR* root);
 
-void insert(T_NODE_PTR* root,u_char* macAddr, char* ipv6);
+/**
+ * Funkce pro vkládání nalezených IPv4 adres do stromu. Díky funkci stromu je eliminována možnost duplictních výskytů adres.
+ * @param root - ukazatel nastrom
+ * @param macAddr - vkládající MAC
+ * @param ipv4 - vkládající IPv4
+ */
 void insert(T_NODE_PTR* root,u_char* macAddr, u_char* ipv4);
 
-T_NODE_PTR search(T_NODE_PTR root, u_char* macAddr);
+/**
+ * Funkce pro vkládání nalezených IPv6 adres do stromu. Díky funkci stromu je eliminována možnost duplictních výskytů adres.
+ * @param root - ukazatel nastrom
+ * @param macAddr - vkládající MAC
+ * @param ipv6 - vkládající IPv6
+ */
+void insert(T_NODE_PTR* root,u_char* macAddr, char* ipv6);
+
+/**
+ * Funkce pro vypsání stromu do souboru v požadovaném XML formátu. Adresy jsu vypsány pouze pokud jsou uloženy ve stromu.
+ * @param root - ukazatel nastrom
+ * @param outputFile - výstupní soubor
+ */
 void printTree(T_NODE_PTR root, std::ofstream& outputFile);
+
+/**
+ * Funkce pro smazání stromu z paměti.
+ * @param root - ukazatel na strom
+ */
 void dispose (T_NODE_PTR *root);
+
+//T_NODE_PTR search(T_NODE_PTR root, u_char* macAddr);   // Search - zatím netřeba
 
 #endif /* TREE_H */
 

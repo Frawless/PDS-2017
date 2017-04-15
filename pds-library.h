@@ -47,6 +47,7 @@
 extern "C" {
 #endif
 
+	// Definice chybových stavů
 #define ERR_VICMAC1 100
 #define ERR_VICMAC2 101
 #define ERR_VICIP1 102
@@ -57,27 +58,37 @@ extern "C" {
 #define ERR_DEF 150
 #define ERR_OK	0
 	
-#define ETH_ADDR_LEN 6
-#define IP_ADDR_LEN 4
+
 
 #define TARGET_MAC 00
 #define PTYPE 0x8000
 
 #define MAXBYTES2CAPTURE 2048 
+	
+#define ETH_ADDR_LEN 6		// Velikost MAC adresy
+#define IP_ADDR_LEN 4		// Velikost IPv4
+#define ETH_HDRLEN 14		// Velikost Ethernetového paketu
+#define IP6_HDRLEN 40		// IPv6 header velikost
+#define ICMP_HDRLEN 8		// ICMP header velikost
+#define HOP_HDRLEN 2        // Hop-by-hop velikost
+#define MAX_HBHOPTIONS 2    // Maximální počet HOP-BY-HOP hlaviček
+#define MAX_HBHOPTLEN 256   // Maximální velikost HOP by HOP
+#define MAX_ADDRESSES 255   // Maximální velikost adresy
+#define MALFORMED_SIZE 30	// Velikost porušeného paketu
 
-/* ARP Hlavička, (assuming Ethernet+IPv4)            */ 
-#define ARP_REQUEST 1   /* ARP Request             */ 
-#define ARP_REPLY 2     /* ARP Reply               */ 
+/* ARP Hlavička*/ 
+#define ARP_REQUEST 1   // ARP Request
+#define ARP_REPLY 2     // ARP Reply  
 typedef struct arphdr_def { 
-    u_int16_t htype;    /* Hardware Type           */ 
-    u_int16_t ptype;    /* Protocol Type           */ 
-    u_char hlen;        /* Hardware Address Length */ 
-    u_char plen;        /* Protocol Address Length */ 
-    u_int16_t oper;     /* Operation Code          */ 
-    u_char sha[ETH_ADDR_LEN];      /* Sender hardware address */ 
-    u_char spa[IP_ADDR_LEN];      /* Sender IP address       */ 
-    u_char tha[ETH_ADDR_LEN];      /* Target hardware address */ 
-    u_char tpa[IP_ADDR_LEN];      /* Target IP address       */ 
+    u_int16_t htype;    // Hardware Type            
+    u_int16_t ptype;    // Protocol Type            
+    u_char hlen;        // Hardware Address Length (Délka MAC)
+    u_char plen;        // Protocol Address Length  
+    u_int16_t oper;     // Operation Code  (Request/Reply) 
+    u_char sha[ETH_ADDR_LEN];      // Zdrojová MAC
+    u_char spa[IP_ADDR_LEN];       // Zdrojová IP
+    u_char tha[ETH_ADDR_LEN];      // Cílová MAC
+    u_char tpa[IP_ADDR_LEN];       // Cílová IP
 }ARP_HEADER; 
 	
 // Funkce pro získání informací interface
@@ -94,79 +105,49 @@ typedef struct interface_info{
 } INTERFACE_INFO;
 
 
-// Define a struct for hop-by-hop header, excluding options.
+// HOP-BY-HOP struktura pro ICMPv6
 typedef struct _hop_hdr hop_hdr;
 struct _hop_hdr {
   uint8_t nxt_hdr;
   uint8_t hdr_len;
 };
 
-#define ETH_HDRLEN 14  // Velikost Ethernetového paketu
-#define IP6_HDRLEN 40  // IPv6 header velikost
-#define ICMP_HDRLEN 8  // ICMP header velikost
 
-
-// Define some constants.
-#define HOP_HDRLEN 2          // Hop-by-hop header length, excluding options
-#define MAX_HBHOPTIONS 2     // Maximum number of extension header options
-#define MAX_HBHOPTLEN 256     // Maximum length of a hop-by-hop option (some large value)
-#define MAX_ADDRESSES 255     // Maximum number of (full) addresses that can be used in type 3 routing header
-#define MALFORMED_SIZE 30
 
 
 /**
- * Funkce pro otevření požadovaného interfacu
- * @param interface jmeno interface
- * @param secondPar
+ * Funkce pro otevření požadovaného rozhraní
+ * @param interface - jmeno interface
+ * @param secondPar - filter pro odchytávání
  **/ 
 pcap_t* openInterface(char* interface, const char* secondPar);
 
-
-void openFile(char* file);
-
 /**
- * Funkce pro odchytávání ARP paketů
- * @param descriptor paket deskriptor
- **/ 
-void ARPSniffer(pcap_t* descriptor, pcap_handler func);
-
-/**
- * Funkce pro ukončení snifferu
- * @param signo
- **/
-//void terminate(int signo);
-
-/**
- * 
- * @param 
- * @param 
- * @param packetptr
- */
-void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr);
-
-/**
- * 
- * @param interface
- * @return 
+ * Funkce pro získání potřebných údajů o užívnaém rozhraní - IP adresy, MAC
+ * @param intInfo - ukazatel na strukturu pro uložení dat
+ * @param interface - název rozhranní
  */
 void getInterfaceInfo(INTERFACE_INFO* intInfo, char * interface);
 
 /**
- * 
- * @param ip
- * @return 
+ * Funkce pro otevření výstupního souboru.
+ * @param file - název souboru
  */
-char * my_ntoa(unsigned long ip);
-uint16_t checksum (uint16_t *addr, int len);
-uint16_t icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_t *payload, int payloadlen);
+void openFile(char* file);
+
 /**
- * 
- * @param intInfo
- * @param arpHdr
- * @param tarAdd
- * @param ptr
- * @param datalen
- * @param sizeofARP
+ * Funkce pro převod adresy z binární reprezentace na string.
+ * @param input - vstupní adresa v u_char
+ * @return  - adresa v podobě stringu
+ */
+std::string createAddress(u_char * input);
+
+/**
+ * Funkce pro vytvoření ARP paketu pro skenování,
+ * @param intInfo - struktura s informacemi o rozhraní
+ * @param arpHdr - ukazatel na místo v paměti pro ARP hlavičku
+ * @param ptr - ukazatel na paketu
+ * @param datalen - délka 
  * @return 
  */
 u_char* createARP(INTERFACE_INFO* intInfo,
@@ -175,43 +156,90 @@ u_char* createARP(INTERFACE_INFO* intInfo,
 				ssize_t &datalen);
 
 /**
- * 
- * @param intInfo
- * @param datalen
- * @param packetPtr
+ * Funkce pro skenování sítě pomocí ARP a ICMPv6. Ve funkci je vytvořen nový proces aby bylo možné odchytávat pakety již během posílání.
+ * @param intInfo - struktura s informacemi o rozhraní
+ * @param descriptor - ukazatel na paket
  */
 void scanNetwork(INTERFACE_INFO* intInfo, pcap_t* descriptor);
 
+/**
+ * Funkce pro vytvoření a zaslání všechn ptřebných ARP paketů do sítě. 
+ * Ze získané adresy sítě a počtu hostů jsou zasílány pakety všem.
+ * @param intInfo - struktura s informacemi o rozhraní
+ */
 void scanIPv4(INTERFACE_INFO* intInfo);
-void scanIPv6(INTERFACE_INFO* intInfo, bool malform);
-
-void fillIPv6hdr(INTERFACE_INFO* intInfo,struct ip6_hdr send_iphdr, int datalen);
-
-char *
-allocate_strmem (int len);
-uint8_t *
-allocate_ustrmem (int len);
-uint8_t **
-allocate_ustrmemp (int len);
-int *
-allocate_intmem (int len);
-
-void test(struct pcap_pkthdr *pkthdr,const u_char *packetptr);
-
-
-std::string createAddress(u_char * input);
 
 /**
- * 
- * @param mac
+ * Funkce pro zaslání ping paketů pro sken IPv6 zařízení.
+ * Ne všechny zařízení na PING odpoví, proto je zavedena druhá verze paketu s vadným paketem.
+ * V případě malform paketu je zaslán poškozený paket, na který odpoví zařízení pomocí ICMPv6.
+ * @param intInfo - struktura s informacemi o rozhraní
+ * @param malform - příznak, zda paket má být požkozen nebo ne
+ */
+void scanIPv6(INTERFACE_INFO* intInfo, bool malform);
+
+/**
+ * Funkce pro odchytávání ARP paketů pro sken.
+ * @param descriptor - ukazatle na paketu
+ * @param func - funkce pro zpracování paketů
+ **/ 
+void ARPSniffer(pcap_t* descriptor, pcap_handler func);
+
+/**
+ * Funkce pro zpracování paketů.
+ * @param 
+ * @param 
+ * @param packetptr - ukazatel na paket
+ */
+void parsePacket(u_char *, struct pcap_pkthdr *, u_char *packetptr);
+
+/**
+ * Funkce pro vypsání MAC adresy.
+ * @param mac - MAC adresa
  */
 void printMAC(u_char * mac);
 
 /**
- * 
- * @param ip
+ * Funkce pro vypsání IPv4 adresy.
+ * @param ip - IPv4 adresa
  */
 void printIP(u_char * ip);
+
+//#################################################################################################################################
+// Následující funkce jsou převzaty z veřejného zdroje - http://www.pdbuchan.com/rawsock/rawsock.html
+
+/**
+ * Funkce pro převod IP adresy z long na IPv4.
+ * @param ip - vstupní počet bitů
+ * @return - ip adresa
+ */
+char * myNtoa(unsigned long ip);
+
+/**
+ * Funkce pro výpočet checksumu u IPv6 paketů.
+ * @param addr - adresa
+ * @param len - délka
+ * @return - spočítaný checksum
+ */
+uint16_t checksum (uint16_t *addr, int len);
+
+/**
+ * Funkce pro výpočet checksumu u paketu ICMPv6
+ * @param iphdr - ip hlavička
+ * @param icmp6hdr - icmp hlavička
+ * @param payload 
+ * @param payloadlen
+ * @return - checksum
+ */
+uint16_t icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_t *payload, int payloadlen);
+
+/**
+ * Funkce pro alokování paměti pro u_char proměnné.
+ * @param len - velikost proměnné
+ * @return - ukazatel do paměti
+ */
+uint8_t * allocate_ustrmem (int len);
+
 
 #ifdef __cplusplus
 }
