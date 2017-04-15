@@ -847,20 +847,20 @@ void poisonARP(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* 
 		
 		 
 		 
-		 createMacAdress(dstMac,mac1);
+		createMacAdress(dstMac,mac1);
 		 
 		 
 
 		 // Fill out hints for getaddrinfo().
-		 memset (&hints, 0, sizeof (struct addrinfo));
-		 hints.ai_family = AF_INET;
-		 hints.ai_socktype = SOCK_STREAM;
-		 hints.ai_flags = hints.ai_flags | AI_CANONNAME;
+		memset (&hints, 0, sizeof (struct addrinfo));
+		hints.ai_family = AF_INET;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_flags = hints.ai_flags | AI_CANONNAME;
 
 //		 memcpy(&arphdr.spa,intInfo->interfaceAdd,4);
-		 inet_pton(AF_INET, ip1,&arphdr.tpa);
-		 inet_pton(AF_INET, ip2,&arphdr.spa);
-		 
+		inet_pton(AF_INET, ip1,&arphdr.tpa);
+		inet_pton(AF_INET, ip2,&arphdr.spa);
+
 		memset (&device, 0, sizeof (device));
 		if ((device.sll_ifindex = if_nametoindex (intInfo->interface)) == 0) {
 		  perror ("if_nametoindex() failed to obtain interface index ");
