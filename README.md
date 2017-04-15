@@ -1,2 +1,2 @@
-# PDS-2016
+# PDS-2017
 Repozitář projektu do předmětu PDS.
