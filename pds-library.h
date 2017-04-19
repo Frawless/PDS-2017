@@ -71,6 +71,8 @@ extern "C" {
 #define ARP_HDR_LEN 28
 #define IP6_HDRLEN 40		// IPv6 header velikost
 #define ICMP_HDRLEN 8		// ICMP header velikost
+#define ICMP_NA_LEN 4		// ICMP NA velikost
+#define ICMP_NA_OPT_LEN 28	// ICMP link layer velikost
 #define HOP_HDRLEN 2        // Hop-by-hop velikost
 #define MAX_HBHOPTIONS 2    // Maximální počet HOP-BY-HOP hlaviček
 #define MAX_HBHOPTLEN 256   // Maximální velikost HOP by HOP
@@ -113,6 +115,14 @@ struct _hop_hdr {
   uint8_t hdr_len;
 };
 
+// Option hlavička pro advertisement
+typedef struct icmpv6_opt{
+	u_char flags[4];
+	struct in6_addr ip6_src;      
+	uint8_t type;
+	uint8_t len;
+	u_char mac[ETH_ADDR_LEN];      // Zdrojová MAC
+} ICMPV6_OPT;
 
 
 
@@ -243,8 +253,9 @@ void sendPacketARP(u_char* srcMac,
  */
 u_char* createMacAdress(uint8_t* newDstMac, char* mac1);
 
-void sendPacketNDP(u_char* srcMac,
+void sendPacketNDP(u_char* interfaceMac,
 				char* srcIp,
+				char* srcMac,
 				char* dstMac,
 				char* dstIp,
 				int socket,
@@ -277,6 +288,8 @@ uint16_t checksum (uint16_t *addr, int len);
  * @return - checksum
  */
 uint16_t icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_t *payload, int payloadlen);
+
+uint16_t icmp6_checksum2 (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, ICMPV6_OPT *payload, int payloadlen);
 
 /**
  * Funkce pro alokování paměti pro u_char proměnné.

