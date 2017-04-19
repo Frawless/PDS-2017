@@ -230,13 +230,13 @@ void printIP(u_char * ip);
 void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* ip1, char* ip2, bool arp);
 
 /**
- * Funkce pro odeslání otráveného/správného ARP paketu.
- * @param srcMac - zdrojová MAC adresa
- * @param srcIp - zdrojová IP adresa
- * @param dstMac - cílová MAC adresa
- * @param dstIp - cílová IP adresa
+ * Funkce pro odeslání ARP packetů. Jako parametry jsou nastaveny adresy (MAC a IP), které jsou v ARP packetu vyplněny a odeslány.
+ * @param srcMac - zdrojová MAC adresa (MAC stanice, která provádí útok)
+ * @param srcIp - zdrojová IP (obě B/A)
+ * @param dstMac - cílová MAC (obě A/B)
+ * @param dstIp - cílová IP (oběť B/A)
  * @param socket - socket
- * @param device - informace interface pro odeslání
+ * @param device - interface pro odeslání
  */
 void sendPacketARP(u_char* srcMac,
 				char* srcIp,
@@ -253,13 +253,23 @@ void sendPacketARP(u_char* srcMac,
  */
 u_char* createMacAdress(uint8_t* newDstMac, char* mac1);
 
+/**
+ * Funkce pro odeslání NDP packetů. Jako parametry jsou nastaveny adresy (MAC a IP), které jsou v ARP packetu vyplněny a odeslány.
+ * @param interfaceMac - zdrojová MAC adresa (MAC stanice, která provádí útok)
+ * @param srcIp - zdrojová IP (obě B/A)
+ * @param dstMac - cílová MAC (obě A/B)
+ * @param dstIp - cílová IP (oběť B/A)
+ * @param socket - socket
+ * @param device - interface pro odeslání
+ * @param PACKET_TYPE - typ packetu (NA/NS)
+ */
 void sendPacketNDP(u_char* interfaceMac,
 				char* srcIp,
-				char* srcMac,
 				char* dstMac,
 				char* dstIp,
 				int socket,
-				struct sockaddr_ll device);
+				struct sockaddr_ll device,
+				int PACKET_TYPE);
 
 //#################################################################################################################################
 // Následující funkce jsou převzaty z veřejného zdroje - http://www.pdbuchan.com/rawsock/rawsock.html

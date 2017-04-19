@@ -282,8 +282,10 @@ void terminate(int signo)
 	else
 	{
 		// Zasílání NDP paketů oběma obětem
-		sendPacketNDP(victim1tmp,victim1ip,victim1mac,victim2mac,victim2ip,sockfd, device);
-		sendPacketNDP(victim2tmp,victim2ip,victim2mac,victim1mac,victim1ip,sockfd, device);		
+//		sendPacketNDP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd,device,ND_NEIGHBOR_SOLICIT);
+		sendPacketNDP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd,device,ND_NEIGHBOR_ADVERT);	// Zvrácení účinku otrávení
+//		sendPacketNDP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd,device,ND_NEIGHBOR_SOLICIT);		
+		sendPacketNDP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd,device,ND_NEIGHBOR_ADVERT);	// Zvrácení účinku otrávení	
 	}
 
 	close(sockfd);
