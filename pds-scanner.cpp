@@ -108,11 +108,11 @@ int main(int argc, char** argv) {
 	// Získání informací o rozhraní pro scan
 	getInterfaceInfo(intInfo,params.interface);
 	
-//	printMAC(intInfo->interfaceMac);
-//	printIP(intInfo->interfaceAdd);
-//	printIP(intInfo->networkAddress);
-//	printIP(intInfo->networkMask);
-//	cerr<<"Počet hostů: "<<intInfo->hosts<<endl;
+	printMAC(intInfo->interfaceMac);
+	printIP(intInfo->interfaceAdd);
+	printIP(intInfo->networkAddress);
+	printIP(intInfo->networkMask);
+	cerr<<"Počet hostů: "<<intInfo->hosts<<endl;
 
 	// Vyhodnocení chybového stavu
 	if(params.ErrParam != ERR_OK){

@@ -5,7 +5,7 @@
  */
 
 // Zdroj - https://www.tutorialspoint.com/data_structures_algorithms/tree_data_structure.htm
-
+// http://www.xmlsoft.org/examples/tree2.c
 #include "tree.h"
 
 /**
@@ -122,11 +122,11 @@ void printTree(T_NODE_PTR root, std::ofstream& outputFile)
 {
 	int i;
 	if(root == NULL){
-//		std::cerr<<"Nenalezeny žádné adresy!"<<std::endl;
+		std::cerr<<"Nenalezeny žádné adresy!"<<std::endl;
 		return;
 	}
 	else{
-		char tmp[4];
+		char tmp[5];
 		// Výpis MAC
 		outputFile<<"\t<host mac=\"";
 		for(i=0; i<5;i++){
@@ -136,6 +136,7 @@ void printTree(T_NODE_PTR root, std::ofstream& outputFile)
 			if(i % 2 != 0)
 				outputFile<<".";
 		}
+		std::cerr<<"MAC ok!"<<std::endl;
 		sprintf(tmp,"%02X", root->macAddr[5]);
 		outputFile << tmp<<"\">\n";
 		// Výpis IPv4
@@ -151,6 +152,7 @@ void printTree(T_NODE_PTR root, std::ofstream& outputFile)
 			sprintf(tmp,"%d", root->ipv4[3]);
 			outputFile << tmp <<"</ipv4>\n";	
 		}
+		std::cerr<<"IPv4 ok!"<<std::endl;
 		// Výpisy uložených IPv6
 		if(root->ip6a[0] != '#')
 		{

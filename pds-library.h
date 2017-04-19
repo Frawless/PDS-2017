@@ -217,7 +217,7 @@ void printIP(u_char * ip);
  * @param ip1 - IP adresa 1. oběti
  * @param ip2 - IP adresa 2. oběti
  */
-void poisonARP(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* ip1, char* ip2);
+void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, char* ip1, char* ip2, bool arp);
 
 /**
  * Funkce pro odeslání otráveného/správného ARP paketu.
@@ -242,6 +242,13 @@ void sendPacketARP(u_char* srcMac,
  * @return 
  */
 u_char* createMacAdress(uint8_t* newDstMac, char* mac1);
+
+void sendPacketNDP(u_char* srcMac,
+				char* srcIp,
+				char* dstMac,
+				char* dstIp,
+				int socket,
+				struct sockaddr_ll device);
 
 //#################################################################################################################################
 // Následující funkce jsou převzaty z veřejného zdroje - http://www.pdbuchan.com/rawsock/rawsock.html

@@ -230,7 +230,7 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 
 
 /**
- * Funkce pro ukončení snifferu
+ * Funkce pro ukončení sppoferu. Odešle zpátky zařízením správné pakety.
  * @param signo
  **/
 void terminate(int signo)
@@ -268,20 +268,23 @@ void terminate(int signo)
 		exit (EXIT_FAILURE);
 	}
 	
+	device.sll_family = AF_PACKET;
+	memcpy (device.sll_addr, intMac, 6 * sizeof (uint8_t));
+	device.sll_halen = 6;
+	
 	// Vrácení zpátky ARP
-	if(strcmp(protocol,"ARP") == 0)
+	if(strcmp(protocol,"arp") == 0)
 	{
-		device.sll_family = AF_PACKET;
-		memcpy (device.sll_addr, intMac, 6 * sizeof (uint8_t));
-		device.sll_halen = 6;
-			
-		// Zasílání paketů oběma obětem
+		// Zasílání ARP paketů oběma obětem
 		sendPacketARP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd, device);
 		sendPacketARP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd, device);
 	}
 	else
-		cerr<<"Ukončit NDP"<<endl;
-
+	{
+		// Zasílání NDP paketů oběma obětem
+		sendPacketNDP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd, device);
+		sendPacketNDP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd, device);		
+	}
 
 	close(sockfd);
 
@@ -332,10 +335,12 @@ int main(int argc, char** argv) {
 	signal(SIGTERM, terminate);
 	signal(SIGQUIT, terminate);	
 	
-	if(strcmp("ARP",params.protocol) == 0)
-		poisonARP(intInfo,params.time,params.victim1mac,params.victim2mac,params.victim1ip,params.victim2ip);
-	else if(strcmp("NRP",params.protocol) == 0)
-		cerr<<"Poslat NDP"<<endl;
+	//sudo ./pds-spoof -i wlo1 -t 5 -p ndp --victim1ip 2a00:1028:9940:5eb6::1 --victim1mac 38:72:C0:5E:B8:A7 --victim2ip 2a00:1028:9940:5eb6:92:9d31:7043:3baf --victim2mac 94:0C:6D:A0:04:5A
+
+	if(strcmp("arp",params.protocol) == 0)
+		poisonVictims(intInfo,params.time,params.victim1mac,params.victim2mac,params.victim1ip,params.victim2ip,true);
+	else if(strcmp("ndp",params.protocol) == 0)
+		poisonVictims(intInfo,params.time,params.victim1mac,params.victim2mac,params.victim1ip,params.victim2ip,false);
 	else
 		cerr<<"Nepodporovaný protokol"<<endl;
 	
