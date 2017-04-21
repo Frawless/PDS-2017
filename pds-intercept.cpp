@@ -42,7 +42,7 @@ struct cmp_str
 };
 
 
-std::map<char*,char*,cmp_str> macMap;
+std::map<char*,char*> macMap;
 
 //struktura pro jméno interface
 typedef struct{
@@ -174,10 +174,10 @@ void terminate(int signo)
 
 
 static void
-createMap(xmlNode * a_node, std::map<char*,char*,cmp_str> &macMap)
+createMap(xmlNode * a_node, std::map<char*,char*> &macMap)
 {
     xmlNode *cur_node = NULL;
-	std::map<char*,char*,cmp_str>::iterator it;
+	std::map<char*,char*>::iterator it;
 	xmlChar *uriM, *uriG;
     for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
         if (cur_node->type == XML_ELEMENT_NODE) {
@@ -199,9 +199,9 @@ createMap(xmlNode * a_node, std::map<char*,char*,cmp_str> &macMap)
 }
 
 
-void parseMap(std::map<char*,char*,cmp_str> &macMap){
-	std::map<char*,char*,cmp_str>::iterator tmpIt, it;
-	std::map<char*,char*,cmp_str> tmpMap;
+void parseMap(std::map<char*,char*> &macMap){
+	std::map<char*,char*>::iterator tmpIt, it;
+	std::map<char*,char*> tmpMap;
 	
 	for (it=macMap.begin(); it!=macMap.end(); ++it){
 		for(tmpIt=macMap.begin(); tmpIt!=macMap.end(); ++tmpIt){
@@ -224,7 +224,7 @@ void parseMap(std::map<char*,char*,cmp_str> &macMap){
  * Parse and validate the resource and free the resulting tree
  */
 static void
-parseTree(const char *filename, std::map<char*,char*,cmp_str> &macMap) {
+parseTree(const char *filename, std::map<char*,char*> &macMap) {
     xmlParserCtxtPtr ctxt; /* the parser context */
     xmlDocPtr doc; /* the resulting document tree */
 	xmlNode *root_element = NULL;
@@ -259,12 +259,12 @@ parseTree(const char *filename, std::map<char*,char*,cmp_str> &macMap) {
 }
 
 
-void resendPackets(std::map<char*,char*,cmp_str> macMap,INTERFACE_INFO* intInfo)
+void resendPackets(std::map<char*,char*> macMap,INTERFACE_INFO* intInfo)
 {
-	int i, status, bytes;
+	int status, bytes;
 	uint8_t *ether_frame;
 	u_char tmpMac[ETH_ADDR_LEN];
-	std::map<char*,char*,cmp_str>::iterator it;
+	std::map<char*,char*>::iterator it;
 
 	struct sockaddr_ll device;
 		
@@ -306,36 +306,29 @@ void resendPackets(std::map<char*,char*,cmp_str> macMap,INTERFACE_INFO* intInfo)
 		printMAC(tmpMac);
 		cerr<<endl;
 //		
-//		cerr<<"Hledám: "<<(char*)macToString(tmpMac).c_str()<<endl;
-//		cerr<<macMap.count("78e4.006f.4e1b")<<endl;
+		cerr<<"Hledám: "<<(char*)macToString(tmpMac).c_str()<<endl;
 		
 		cerr<<"Výpis mapy po:"<<endl;
-		for (std::map<char*,char*,cmp_str>::iterator it=macMap.begin(); it!=macMap.end(); ++it){
+		for (std::map<char*,char*>::iterator it=macMap.begin(); it!=macMap.end(); ++it){
 			cerr<<"Key: "<<it->first<<" Value: "<<it->second<<endl;
+			cerr<<"test: "<<(char*)macToString(tmpMac).c_str()<<endl;
 			if(strcmp(it->first,(char*)macToString(tmpMac).c_str()) == 0){
-				cerr<<"####################"<<endl;
-				cerr<<"Poslat na: "<<it->second<<endl;
-				cerr<<"####################"<<endl;
+				createMacAdressFromXML(tmpMac,(const xmlChar*)it->second);
+				cerr<<"Přeposílám na: ";
+				printMAC(tmpMac);
+				cerr<<endl;
+				memcpy (ether_frame, tmpMac, ETH_ADDR_LEN * sizeof (uint8_t));
+		//		memcpy (ethFrame + ETH_ADDR_LEN, srcMac, ETH_ADDR_LEN * sizeof (uint8_t));
+	
+				// Send ethernet frame to socket.
+				if ((bytes = sendto (sockfd, ether_frame, status, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
+					perror ("sendto() failed");
+					exit (EXIT_FAILURE);
+				}
+				break;
 			}
-		}	
-		
-//		it = macMap.find((char*)macToString(tmpMac).c_str());
-//		if (it != macMap.end())
-//		{
-//			createMacAdressFromXML(tmpMac,(const xmlChar*)it->second);
-//			cerr<<"Přeposílám na: ";
-//			printMAC(tmpMac);
-//			cerr<<endl;
-//			memcpy (ether_frame, tmpMac, ETH_ADDR_LEN * sizeof (uint8_t));
-//	//		memcpy (ethFrame + ETH_ADDR_LEN, srcMac, ETH_ADDR_LEN * sizeof (uint8_t));
-//
-//			// Send ethernet frame to socket.
-//			if ((bytes = sendto (sockfd, ether_frame, status, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
-//				perror ("sendto() failed");
-//				exit (EXIT_FAILURE);
-//			}
-//		}	
-		
+			
+		}			
 	}
 }
 

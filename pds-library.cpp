@@ -336,6 +336,8 @@ void scanNetwork(INTERFACE_INFO* intInfo,pcap_t* descriptor)
 		cerr<<"Scan IPv6 rozselán."<<endl;
 //		ARPSniffer(descriptor, (pcap_handler)parsePacket);
 		usleep(119000000);
+//		cerr<<"ukončí"<<endl;
+//		pcap_close(descriptor);
 		exit(EXIT_SUCCESS);
 	}
 	else
@@ -981,14 +983,6 @@ void sendPacketNDP(u_char* interfaceMac,
 }
 
 //#################################################Intercept#######################################################################
-
-
-// Načtení XMl, dostane to třeba 3 dvojice a všechny to bude přeposílat
-void reSendPackets(char *victim1mac, char *victim1ip, char *victim2mac, char *victim2ip)
-{
-	
-}
-
 
 
 //#################################################################################################################################

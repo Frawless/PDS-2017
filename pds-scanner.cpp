@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
 	
 	//filtr pro ARP a ICMPv6 (scan)
 	//návázání spojení s daným interface
-	packetDesc = openInterface(params.interface, "(arp) or (icmp6)", 20000);
+	packetDesc = openInterface(params.interface, "(arp) or (icmp6)", 120000000);
 	// Otevřený výstupního souboru
 	openFile(params.fileName);
 

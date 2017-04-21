@@ -132,14 +132,14 @@ void printTree(T_NODE_PTR root, std::ofstream& outputFile)
 		// Výpis MAC
 		outputFile<<"\t<host mac=\"";
 		for(i=0; i<5;i++){
-			sprintf(tmp,"%02X", root->macAddr[i]);
+			sprintf(tmp,"%02x", root->macAddr[i]);
 			outputFile << tmp;
 
 			if(i % 2 != 0)
 				outputFile<<".";
 		}
 		std::cerr<<"MAC ok!"<<std::endl;
-		sprintf(tmp,"%02X", root->macAddr[5]);
+		sprintf(tmp,"%02x", root->macAddr[5]);
 		outputFile << tmp<<"\">\n";
 		// Výpis IPv4
 		if(root->ipv4[0] != '#')
