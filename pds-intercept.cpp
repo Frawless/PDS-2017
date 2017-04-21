@@ -21,11 +21,28 @@
 #include "pds-library.h"
 #include "tree.h"
 
+#include <net/if.h>
+#include <sys/socket.h>
+#include <linux/if_packet.h>
+#include <net/ethernet.h> /* the L2 protocols */
+
 using namespace std;    // Or using std::string
 typedef std::string NetError;
 
 //pcap socket deskriptor
 pcap_t* packetDesc;
+int sockfd;
+
+struct cmp_str
+{
+   bool operator()(char const *a, char const *b) const
+   {
+      return strcmp(a, b) < 0;
+   }
+};
+
+
+std::map<char*,char*,cmp_str> macMap;
 
 //struktura pro jméno interface
 typedef struct{
@@ -139,71 +156,28 @@ void printError(int error)
 void terminate(int signo)
 {
     //zavření spojení
-    pcap_close(packetDesc);
+	close(sockfd);
+    pcap_close(packetDesc); 
+	macMap.clear();
+	/*
+     * Cleanup function for the XML library.
+     */
+    xmlCleanupParser();
+    /*
+     * this is to debug memory for regression tests
+     */
+    xmlMemoryDump();	
 	cerr<<"Signo number: "<<signo<<endl;
 	cerr<<"Func: terminate exit(0)"<<endl;	
     exit(EXIT_SUCCESS);
 }
 
 
-void
-parseStory (xmlDocPtr doc, xmlNodePtr cur) {
-
-	xmlChar *key;
-	cur = cur->xmlChildrenNode;
-	while (cur != NULL) {
-	   if ((!xmlStrcmp(cur->name, (const xmlChar *)"keyword"))) {
-		    key = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
-		    printf("keyword: %s\n", key);
-		    xmlFree(key);
- 	   }
-	cur = cur->next;
-	}
-    return;
-}
-
-
-/**
- * print_element_names:
- * @a_node: the initial xml node to consider.
- *
- * Prints the names of the all the xml elements
- * that are siblings or children of a given xml node.
- */
-
-xmlChar* getGroup(xmlNode * a_node, string mac){
-    xmlNode *cur_node = NULL;
-	xmlChar *uriM, *uriG, *output = NULL;
-	
-    for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
-        if (cur_node->type == XML_ELEMENT_NODE) {
-//            printf("node type: Element, name: %s Value: %s\n", cur_node->name,xmlNodeGetContent(cur_node));
-//			printf("Element: %s\n",cur_node->name);
-			if ((!xmlStrcmp(cur_node->name, (const xmlChar *)"host"))) {
-				uriM = xmlGetProp(cur_node, (const xmlChar *)"mac");
-				uriG = xmlGetProp(cur_node, (const xmlChar *)"group");
-				if(uriG != NULL){
-					if(!(xmlStrcmp((const xmlChar*)mac.c_str(), uriM))){
-//						printf("GROUP_search: %s\n",uriG);
-						return uriG;
-					}					
-				}			
-			}
-        }
-		output = getGroup(cur_node->children, mac);
-//		printf("output: %s\n",output);
-		if(output != NULL)
-			return output;
-    }
-	return NULL;
-}
-
-
 static void
-createMap(xmlNode * a_node, std::map<char*,char*> &macMap)
+createMap(xmlNode * a_node, std::map<char*,char*,cmp_str> &macMap)
 {
     xmlNode *cur_node = NULL;
-	std::map<char*,char*>::iterator it;
+	std::map<char*,char*,cmp_str>::iterator it;
 	xmlChar *uriM, *uriG;
     for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
         if (cur_node->type == XML_ELEMENT_NODE) {
@@ -225,30 +199,22 @@ createMap(xmlNode * a_node, std::map<char*,char*> &macMap)
 }
 
 
-void parseMap(std::map<char*,char*> &macMap){
-	std::map<char*,char*>::iterator tmpIt, it;
-	std::map<char*,char*> tmpMap;
+void parseMap(std::map<char*,char*,cmp_str> &macMap){
+	std::map<char*,char*,cmp_str>::iterator tmpIt, it;
+	std::map<char*,char*,cmp_str> tmpMap;
 	
 	for (it=macMap.begin(); it!=macMap.end(); ++it){
-//		cerr<<"it "<<it->first<<" : "<<it->second<<endl;
 		for(tmpIt=macMap.begin(); tmpIt!=macMap.end(); ++tmpIt){
-//			cerr<<"tmp "<<tmpIt->first<<" : "<<tmpIt->second<<endl;
-//			cerr<<"dvojice: "<<tmpIt->first<<"#"<<" : "<<it->second<<"#"<<endl;
-//			cerr<<"dvojice"<<endl;
-//			cerr<<it->first<<"#"<<endl;
-//			cerr<<tmpIt->second<<"#"<<endl;
 			if(strcmp(tmpIt->second,it->first) == 0){
 				if(strcmp(tmpIt->first,it->second) != 0){
-//					cerr<<"it "<<it->first<<" : "<<it->second<<endl;
-//					cerr<<"tmp "<<tmpIt->first<<" : "<<tmpIt->second<<endl;	
 					tmpMap[it->second] = tmpIt->first;
 				}
 
 			}
 		}
 	}
-
 	macMap = tmpMap;
+	tmpMap.clear();
 }
 
 /**
@@ -258,7 +224,7 @@ void parseMap(std::map<char*,char*> &macMap){
  * Parse and validate the resource and free the resulting tree
  */
 static void
-parseTree(const char *filename, std::map<char*,char*> &macMap) {
+parseTree(const char *filename, std::map<char*,char*,cmp_str> &macMap) {
     xmlParserCtxtPtr ctxt; /* the parser context */
     xmlDocPtr doc; /* the resulting document tree */
 	xmlNode *root_element = NULL;
@@ -293,7 +259,85 @@ parseTree(const char *filename, std::map<char*,char*> &macMap) {
 }
 
 
-// Projdu strom, pokud narazím na někoho, kdo má group tak ho přidám a hledám druhého, výsledkem bude ten vector struktur nebo mapa, pak jen přeposílání
+void resendPackets(std::map<char*,char*,cmp_str> macMap,INTERFACE_INFO* intInfo)
+{
+	int i, status, bytes;
+	uint8_t *ether_frame;
+	u_char tmpMac[ETH_ADDR_LEN];
+	std::map<char*,char*,cmp_str>::iterator it;
+
+	struct sockaddr_ll device;
+		
+	memset (&device, 0, sizeof (device));
+	if ((device.sll_ifindex = if_nametoindex (intInfo->interface)) == 0) {
+		perror ("if_nametoindex() failed to obtain interface index ");
+		exit (EXIT_FAILURE);
+	}
+	
+	device.sll_family = AF_PACKET;
+	memcpy (device.sll_addr, intInfo->interfaceMac, 6 * sizeof (uint8_t));
+	device.sll_halen = 6;	
+	
+	// Submit request for a raw socket descriptor.
+	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+		perror ("socket() failed ");
+		exit (EXIT_FAILURE);
+	}
+	
+	// Allocate memory for various arrays.
+	ether_frame = allocate_ustrmem (IP_MAXPACKET);
+	while(1)
+	{
+		if ((status = recv (sockfd, ether_frame, IP_MAXPACKET, 0)) < 0) {
+//			if (errno == EINTR) {
+//				memset (ether_frame, 0, IP_MAXPACKET * sizeof (uint8_t));
+//				continue;  // Something weird happened, but let's try again.
+//			} else {
+			perror ("recv() failed:");
+			exit (EXIT_FAILURE);
+//			}	
+		}
+		
+//		cerr<<"Odchyceno: "<<status<<endl;
+		
+		memcpy (tmpMac, ether_frame + ETH_ADDR_LEN, ETH_ADDR_LEN * sizeof (uint8_t));
+		
+		cerr<<"Odchycen packet od: ";
+		printMAC(tmpMac);
+		cerr<<endl;
+//		
+//		cerr<<"Hledám: "<<(char*)macToString(tmpMac).c_str()<<endl;
+//		cerr<<macMap.count("78e4.006f.4e1b")<<endl;
+		
+		cerr<<"Výpis mapy po:"<<endl;
+		for (std::map<char*,char*,cmp_str>::iterator it=macMap.begin(); it!=macMap.end(); ++it){
+			cerr<<"Key: "<<it->first<<" Value: "<<it->second<<endl;
+			if(strcmp(it->first,(char*)macToString(tmpMac).c_str()) == 0){
+				cerr<<"####################"<<endl;
+				cerr<<"Poslat na: "<<it->second<<endl;
+				cerr<<"####################"<<endl;
+			}
+		}	
+		
+//		it = macMap.find((char*)macToString(tmpMac).c_str());
+//		if (it != macMap.end())
+//		{
+//			createMacAdressFromXML(tmpMac,(const xmlChar*)it->second);
+//			cerr<<"Přeposílám na: ";
+//			printMAC(tmpMac);
+//			cerr<<endl;
+//			memcpy (ether_frame, tmpMac, ETH_ADDR_LEN * sizeof (uint8_t));
+//	//		memcpy (ethFrame + ETH_ADDR_LEN, srcMac, ETH_ADDR_LEN * sizeof (uint8_t));
+//
+//			// Send ethernet frame to socket.
+//			if ((bytes = sendto (sockfd, ether_frame, status, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
+//				perror ("sendto() failed");
+//				exit (EXIT_FAILURE);
+//			}
+//		}	
+		
+	}
+}
 
 /*
  * 
@@ -307,11 +351,15 @@ int main(int argc, char** argv) {
 		return (EXIT_FAILURE);
 	}
 	
-	std::map<char*,char*> macMap;
+	INTERFACE_INFO* intInfo = (INTERFACE_INFO*)calloc(18, sizeof(INTERFACE_INFO));			// Struktura pro potřebné adresy
+	// Získání informací o rozhraní pro scan
+	getInterfaceInfo(intInfo,params.interface);	
+	
+	
 	std::map<char*,char*>::iterator it;
 	
 	//návázání spojení s daným interface
-//	packetDesc = openInterface(params.interface, "",0);	
+	packetDesc = openInterface(params.interface, "",0);	
 	
 	//ukončení aplikace
 	signal(SIGINT, terminate);
@@ -334,14 +382,10 @@ int main(int argc, char** argv) {
 		cerr<<"Key: "<<it->first<<" Value: "<<it->second<<endl;
 	}	
 	
-    /*
-     * Cleanup function for the XML library.
-     */
-    xmlCleanupParser();
-    /*
-     * this is to debug memory for regression tests
-     */
-    xmlMemoryDump();	
+	resendPackets(macMap, intInfo);
+	
+	
+
 //	
 	// Odchytávání packetů a jejich přeposílání
 //	packetSniffer(packetDesc, (pcap_handler)reSendPacket);

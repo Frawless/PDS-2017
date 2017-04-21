@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<devices>
+	<host mac="3872.C05E.B8A7" group="victim-pair-2">
+		<ipv6>2a00:1028:9940:5eb6::1</ipv6>
+		<ipv6>fe80::1</ipv6>
+	</host>
+	<host mac="2016.D88B.FF90" group="victim-pair-2">
+		<ipv4>10.0.0.37</ipv4>
+	</host>
+	<host mac="940c.6da0.045a" group="victim-pair-1">
+		<ipv4>10.0.0.34</ipv4>
+		<ipv6>2a00:1028:9940:5eb6:3c68:48b8:3cf6:36d8</ipv6>
+		<ipv6>fe80::960c:6dff:fea0:45a</ipv6>
+	</host>
+	<host mac="78e4.006f.4e1b" group="victim-pair-1">
+		<ipv4>10.0.0.46</ipv4>
+		<ipv6>2a00:1028:9940:5eb6:8d5c:460f:4fd0:24ca</ipv6>
+		<ipv6>fe80::7ae4:ff:fe6f:4e1b</ipv6>
+	</host>
+	<host mac="74E2.8C5C.0184">
+		<ipv4>10.0.0.35</ipv4>
+	</host>
+	<host mac="A854.B26C.4FA4">
+		<ipv4>10.0.0.39</ipv4>
+	</host>
+	<host mac="DCEE.064E.21DC">
+		<ipv4>10.0.0.36</ipv4>
+	</host>
+	<host mac="C802.1042.845A">
+		<ipv4>10.0.0.32</ipv4>
+	</host>
+</devices>

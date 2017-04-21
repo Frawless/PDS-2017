@@ -8,7 +8,7 @@
 #################################################
 
 CC = g++
-CFLAGS = -std=c++98 -Wall -pedantic -W -Wextra -O2 -g
+CFLAGS = -std=c++98 -Wall -pedantic -W -Wextra -O2 -g -std=c++11
 LOGIN = xstejs24
 FILES = pds-library.o tree.o pds-intercept pds-spoof pds-scanner 
 PACK = *.c *.h Makefile dokumentace.pdf

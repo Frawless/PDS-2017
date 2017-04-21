@@ -235,20 +235,19 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
  **/
 void terminate(int signo)
 {
-    struct pcap_stat stats;
+//    struct pcap_stat stats;
 		
-	ARP_HEADER arphdr;
-	int status, bytes, sockfd;
-	ssize_t datalen = 0;
-	uint8_t *src_mac, *dstMac, *ethFrame;
-	struct addrinfo hints, *res;
-	struct sockaddr_in *ipv4;
+	int sockfd;
+//	ssize_t datalen = 0;
+//	uint8_t *src_mac, *dstMac, *ethFrame;
+//	struct addrinfo hints, *res;
+//	struct sockaddr_in *ipv4;
 	struct sockaddr_ll device;
 	
 	// Alokace paměti
-	src_mac = allocate_ustrmem (ETH_ADDR_LEN);
-	dstMac = allocate_ustrmem (ETH_ADDR_LEN);
-	ethFrame = allocate_ustrmem (IP_MAXPACKET);
+//	src_mac = allocate_ustrmem (ETH_ADDR_LEN);
+//	dstMac = allocate_ustrmem (ETH_ADDR_LEN);
+//	ethFrame = allocate_ustrmem (IP_MAXPACKET);
 		
 	memset (&device, 0, sizeof (device));
 	if ((device.sll_ifindex = if_nametoindex (interface)) == 0) {
@@ -271,21 +270,41 @@ void terminate(int signo)
 	device.sll_family = AF_PACKET;
 	memcpy (device.sll_addr, intMac, 6 * sizeof (uint8_t));
 	device.sll_halen = 6;
+
 	
 	// Vrácení zpátky ARP
 	if(strcmp(protocol,"arp") == 0)
 	{
+//		device.sll_family = AF_PACKET;
+//		memcpy (device.sll_addr, victim1tmp, 6 * sizeof (uint8_t));
+//		device.sll_halen = 6;		
+		
 		// Zasílání ARP paketů oběma obětem
+		usleep(1000000);
 		sendPacketARP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd, device);
+		
+		memcpy (device.sll_addr, victim1tmp, 6 * sizeof (uint8_t));
+		
 		sendPacketARP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd, device);
+		cerr<<"Původní stav tabulek nahozen!"<<endl;
 	}
 	else
 	{
+//		device.sll_family = AF_PACKET;
+//		memcpy (device.sll_addr, victim1tmp, 6 * sizeof (uint8_t));
+//		device.sll_halen = 6;	
+		
 		// Zasílání NDP paketů oběma obětem
+		usleep(1000000);
 //		sendPacketNDP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd,device,ND_NEIGHBOR_SOLICIT);
 		sendPacketNDP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd,device,ND_NEIGHBOR_ADVERT);	// Zvrácení účinku otrávení
 //		sendPacketNDP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd,device,ND_NEIGHBOR_SOLICIT);		
 		sendPacketNDP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd,device,ND_NEIGHBOR_ADVERT);	// Zvrácení účinku otrávení	
+		
+		
+//		sendPacketNDP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd,device,ND_NEIGHBOR_SOLICIT);
+//		sendPacketNDP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd,device,ND_NEIGHBOR_SOLICIT);
+		
 	}
 
 	close(sockfd);

@@ -75,6 +75,8 @@ void openFile(char* file);
  */
 std::string createAddress(u_char * input);
 
+std::string macToString(u_char * input);
+
 /**
  * Funkce pro vytvoření ARP paketu pro skenování,
  * @param intInfo - struktura s informacemi o rozhraní
