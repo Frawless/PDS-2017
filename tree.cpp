@@ -7,6 +7,8 @@
 // Zdroj - https://www.tutorialspoint.com/data_structures_algorithms/tree_data_structure.htm
 // http://www.xmlsoft.org/examples/tree2.c
 #include "tree.h"
+#include <cstring>
+using namespace std;
 
 /**
  * Funkce pro inicializaci stromu.
@@ -242,8 +244,4 @@ void dispose (T_NODE_PTR *root) {
 //	else
 //		return (root);
 //}
-
-
-
-
 

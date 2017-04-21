@@ -10,7 +10,7 @@
  */
 
 #include "pds-library.h"
-#include "tree.h"
+//#include "tree.h"m
 #include <pcap.h>
 #include <arpa/inet.h>
 
@@ -55,7 +55,7 @@ ofstream outputFile;
  * @param interface - jmeno interface
  * @param secondPar - filter pro odchytávání
  **/ 
-pcap_t* openInterface(char* interface, const char* secondPar)
+pcap_t* openInterface(char* interface, const char* secondPar, int timeout)
 {
 	pcap_t* packetDesc;  					//packetDescriptor
   
@@ -74,7 +74,7 @@ pcap_t* openInterface(char* interface, const char* secondPar)
       * @param packet read timeout
 	  * @param odložný prostor pro chybové zprávy
 	  **/
-	if((packetDesc = pcap_open_live(interface, BUFSIZ, 1, 120000, errBuf)) == NULL)
+	if((packetDesc = pcap_open_live(interface, BUFSIZ, 1, timeout, errBuf)) == NULL)
 	{
 		cerr<<"Nepovedlo se připojit na interface ->"<<endl;
 		cerr<< "pcap_open_live() failed: " << errBuf << endl;
@@ -321,7 +321,7 @@ void scanNetwork(INTERFACE_INFO* intInfo,pcap_t* descriptor)
 	{
 		treeInit(&tree);	// Inicializace stromu
 		// Odchytávání potřebných paketů
-		ARPSniffer(descriptor, (pcap_handler)parsePacket);
+		packetSniffer(descriptor, (pcap_handler)parsePacket);
 		// Zrušení stromu
 		dispose(&tree);
 	}
@@ -574,7 +574,7 @@ void scanIPv6(INTERFACE_INFO* intInfo, bool malform)
  * @param descriptor - ukazatle na paketu
  * @param func - funkce pro zpracování paketů
  **/ 
-void ARPSniffer(pcap_t* descriptor, pcap_handler func)
+void packetSniffer(pcap_t* descriptor, pcap_handler func)
 {
 	cerr<<"Odchytávání odpovědí..."<<endl;
 		
@@ -751,8 +751,35 @@ u_char* createMacAdress(uint8_t* outMac, char* inMac)
 {
 	unsigned int values[6];
 	int i;
-
+	cerr<<"test"<<endl;
 	if( 6 == sscanf( inMac, "%x:%x:%x:%x:%x:%x",
+		&values[0], &values[1], &values[2],
+		&values[3], &values[4], &values[5] ) )
+	{
+		/* convert to uint8_t */
+		for( i = 0; i < 6; ++i )
+			outMac[i] = (uint8_t) values[i];
+	}	
+	else{
+		cerr<<"Špatný formát MAC adresy!"<<endl;
+		exit(EXIT_FAILURE);
+	}
+	
+	return (u_char*)outMac;
+}
+
+/**
+ * Funkce pro konverzi MAC adresy ve formátu char na u_char/uint8_t
+ * @param outMac - ukazatel na místo v paměti pro výsledek
+ * @param inMac - vstupní MAC adresa (char)
+ * @return 
+ */
+u_char* createMacAdressFromXML(uint8_t* outMac, const xmlChar* inMac)
+{
+	unsigned int values[6];
+	int i;
+	
+	if( 6 == sscanf( (char*)inMac, "%2x%2x.%2x%2x.%2x%2x",
 		&values[0], &values[1], &values[2],
 		&values[3], &values[4], &values[5] ) )
 	{
@@ -921,6 +948,17 @@ void sendPacketNDP(u_char* interfaceMac,
 	free(dst_mac);
 	free(data);
 }
+
+//#################################################Intercept#######################################################################
+
+
+// Načtení XMl, dostane to třeba 3 dvojice a všechny to bude přeposílat
+void reSendPackets(char *victim1mac, char *victim1ip, char *victim2mac, char *victim2ip)
+{
+	
+}
+
+
 
 //#################################################################################################################################
 // Následující funkce jsou převzaty z veřejného zdroje - http://www.pdbuchan.com/rawsock/rawsock.html
@@ -1168,3 +1206,6 @@ uint8_t * allocate_ustrmem (int len)
 		exit (EXIT_FAILURE);
 	}
 }
+
+
+// ###########################################################################################################

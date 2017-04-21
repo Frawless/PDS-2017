@@ -148,7 +148,7 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 
 	int option_index = 0;
 	char tmp[255];
-    const char* const short_opts = "i:t:p:a:b:c:d:";
+    const char* const short_opts = "i:t:p:";
     const option long_opts[] = {
             {"victim1ip", required_argument, 0, 'a'},
             {"victim1mac", required_argument, 0, 'b'},
@@ -160,7 +160,7 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 	
 	//ověření správnosti a počtu argumentů
 	//./pds-spoof -i interface -t sec -p protocol -victim1ip ipaddress -victim1mac macaddress -victim2ip ipaddress -victim2mac macaddress
-	while((c = getopt_long(argc,argv,short_opts, long_opts, &option_index)) != -1)
+	while((c = getopt_long_only(argc,argv,short_opts, long_opts, &option_index)) != -1)
 	{
 		//parametr i + interface_name
 		switch(c)
@@ -310,14 +310,14 @@ int main(int argc, char** argv) {
 	
 	//filtr pro ARP a ICMPv6 (scan)
 	//návázání spojení s daným interface
-	packetDesc = openInterface(params.interface, "(arp) or (icmp6)");
+	packetDesc = openInterface(params.interface, "(arp) or (icmp6)",0);
 	
-	cerr<<"MAC1: "<<params.victim1mac<<endl;
-	cerr<<"MAC2: "<<params.victim2mac<<endl;
-	cerr<<"IP1: "<<params.victim1ip<<endl;
-	cerr<<"IP2: "<<params.victim2ip<<endl;
-	cerr<<"time: "<<params.time<<endl;
-	cerr<<"Protokol: "<<params.protocol<<endl;
+//	cerr<<"MAC1: "<<params.victim1mac<<endl;
+//	cerr<<"MAC2: "<<params.victim2mac<<endl;
+//	cerr<<"IP1: "<<params.victim1ip<<endl;
+//	cerr<<"IP2: "<<params.victim2ip<<endl;
+//	cerr<<"time: "<<params.time<<endl;
+//	cerr<<"Protokol: "<<params.protocol<<endl;
 	
 	// Globální proměnné pro správné ukončení
 	memcpy(victim1mac,params.victim1mac, 255);

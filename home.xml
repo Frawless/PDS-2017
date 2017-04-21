@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<devices>
+	<host mac="3872.C05E.B8A7">
+		<ipv6>2a00:1028:9940:5eb6::1</ipv6>
+		<ipv6>fe80::1</ipv6>
+	</host>
+	<host mac="3019.66F1.A3D0">
+		<ipv4>10.0.0.33</ipv4>
+	</host>
+	<host mac="74E2.8C5C.0184">
+		<ipv4>10.0.0.35</ipv4>
+	</host>
+</devices>

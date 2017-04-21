@@ -25,21 +25,15 @@
 #include <fstream>
 #include <sstream>
 
-#include "pds-library.h"
+#include <stdio.h>
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+
+#include "types.h"
 
 #ifndef TREE_H
 #define TREE_H
 
-// Struktura pro strom na tvorbu XML
-typedef struct T_NODE {
-	u_char macAddr[ETH_ALEN];	// Klíč (MAC)  
-	u_char ipv4[IP_ADDR_LEN];	// IPv4
-	char ip6a[INET6_ADDRSTRLEN];
-	char ip6b[INET6_ADDRSTRLEN];
-	char ip6c[INET6_ADDRSTRLEN];
-	struct T_NODE *leftChild;
-	struct T_NODE *rightChild;
-} *T_NODE_PTR;
 
 /**
  * Funkce pro inicializaci stromu.
@@ -75,6 +69,13 @@ void printTree(T_NODE_PTR root, std::ofstream& outputFile);
  * @param root - ukazatel na strom
  */
 void dispose (T_NODE_PTR *root);
+
+//static void
+//exampleFunc(const char *filename);
+//
+//static void
+//print_element_names(xmlNode * a_node);
+
 
 //T_NODE_PTR search(T_NODE_PTR root, u_char* macAddr);   // Search - zatím netřeba
 

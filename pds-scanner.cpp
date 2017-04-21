@@ -77,6 +77,7 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
 	return params;
 }
 
+// TODO - tady aby se při stisku ctrl-c vytisklo
 /**
  * Funkce pro ukončení snifferu
  * @param signo
@@ -121,7 +122,7 @@ int main(int argc, char** argv) {
 	
 	//filtr pro ARP a ICMPv6 (scan)
 	//návázání spojení s daným interface
-	packetDesc = openInterface(params.interface, "(arp) or (icmp6)");
+	packetDesc = openInterface(params.interface, "(arp) or (icmp6)", 120000);
 	// Otevřený výstupního souboru
 	openFile(params.fileName);
 
