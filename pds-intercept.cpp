@@ -305,6 +305,7 @@ void resendPackets(std::map<char*,char*> macMap,INTERFACE_INFO* intInfo)
 		cerr<<"Odchycen packet od: ";
 		printMAC(tmpMac);
 		cerr<<endl;
+//		cerr<<"Velikost: "<<status<<endl;
 //		
 		cerr<<"Hledám: "<<(char*)macToString(tmpMac).c_str()<<endl;
 		

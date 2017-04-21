@@ -167,7 +167,8 @@ void sendPacketARP(u_char* srcMac,
 				char* dstMac,
 				char* dstIp,
 				int socket,
-				struct sockaddr_ll device);
+				struct sockaddr_ll device,
+				bool reverse);
 
 /**
  * Funkce pro konverzi MAC adresy ve formátu char na u_char/uint8_t

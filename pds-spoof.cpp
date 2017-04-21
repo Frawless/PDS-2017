@@ -281,11 +281,11 @@ void terminate(int signo)
 		
 		// Zasílání ARP paketů oběma obětem
 		usleep(1000000);
-		sendPacketARP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd, device);
+		sendPacketARP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd, device,true);
 		
 		memcpy (device.sll_addr, victim1tmp, 6 * sizeof (uint8_t));
 		
-		sendPacketARP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd, device);
+		sendPacketARP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd, device,true);
 		cerr<<"Původní stav tabulek nahozen!"<<endl;
 	}
 	else

