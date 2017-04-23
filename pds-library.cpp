@@ -239,7 +239,6 @@ std::string createAddress(u_char * input)
 {
 	char tmp[4];
 	std::string output;
-	printIP(input);
 	for(int i =0; i < 3; i++){
 		sprintf(&tmp[0], "%d", input[i]);
 		output += tmp;
@@ -334,7 +333,7 @@ void scanNetwork(INTERFACE_INFO* intInfo,pcap_t* descriptor)
 		cerr<<"Scan IPv6 rozselán...Odeslán"<<endl;
 //		ARPSniffer(descriptor, (pcap_handler)parsePacket);
 		cerr<<"Čekám na odpovědi..."<<endl;
-		usleep(5000000);
+		usleep(8000000);
 		cerr<<"Ukončuji sken..."<<endl;
 //		pcap_close(descriptor);
 //		usleep(119000000);
@@ -744,12 +743,14 @@ void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, ch
 		if(arp){
 			// Zasílání ARP paketů oběma obětem
 			sendPacketARP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device,true);
-			sendPacketARP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device,true);			
+			sendPacketARP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device,true);	
+			cerr<<"Podvržené ARP pakety odeslány."<<endl;
 		}
 		else{
 			// Zasílání NDP packetů
 			sendPacketNDP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device, ND_NEIGHBOR_ADVERT);	// Podvržení MAC adress
 			sendPacketNDP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device ,ND_NEIGHBOR_ADVERT);	// Podvržení MAC adres	
+			cerr<<"Podvržené NDP pakety odeslány."<<endl;
 		}
 		close(sockfd);
 		usleep(time*1000000);

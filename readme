@@ -1,0 +1,23 @@
+Projekt: PDS - Man in the Middle
+Autor: Jakub Stejskal
+
+Soubory:  
+	pds-scanner.cpp
+	pds-intercept.cpp
+	pds-spoof.cpp
+	pds-library.cpp - knihovna, obsahuje většinu funkcí
+	pds-library.h
+	tree.cpp - funkce pro zpracování výstupu do stromu
+	tree.h
+	types.h - datové typy a struktury, společné pro všechny
+
+Zadání:
+2a - funkční
+	- na referenční topologii ve škole občas nepřišly pakety zpátky
+	- nefunguje správně ukončení ctrl-c (nedokončí se sken a není výstup)
+	- doba trvání skenu je cca 10 vteřin
+2a bonus - neimplementováno
+2b - funkční
+2b bonus - neimplementováno
+2c - funkční
+	- funguje pouze v lokální siti na základě MAC adress

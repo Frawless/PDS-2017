@@ -1,30 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <devices>
-	<host mac="0800.2794.b41e">
-		<ipv4>10.0.0.49</ipv4>
-		<ipv6>2a00:1028:9940:5eb6:7061:3489:9143:2bf</ipv6>
-		<ipv6>fe80::a00:27ff:fe94:b41e</ipv6>
-	</host>
-	<host mac="3872.c05e.b8a7">
-		<ipv4>10.0.0.138</ipv4>
-		<ipv6>2a00:1028:9940:5eb6::1</ipv6>
-		<ipv6>fe80::1</ipv6>
-	</host>
-	<host mac="2016.d88b.ff90">
-		<ipv4>10.0.0.37</ipv4>
-	</host>
-	<host mac="3019.66f1.a3d0">
-		<ipv4>10.0.0.33</ipv4>
-	</host>
-	<host mac="940c.6da0.045a">
-		<ipv4>10.0.0.34</ipv4>
-		<ipv6>2a00:1028:9940:5eb6:d4b:778e:8d04:6c35</ipv6>
-		<ipv6>fe80::960c:6dff:fea0:45a</ipv6>
+	<host mac="f4b7.e292.1c41">
+		<ipv4>10.0.0.42</ipv4>
+		<ipv6>2a00:1028:9940:5eb6:a866:a7f2:2a31:dcd8</ipv6>
+		<ipv6>fe80::e0b7:11f8:c348:7ce6</ipv6>
 	</host>
 	<host mac="74e2.8c5c.0184">
 		<ipv4>10.0.0.35</ipv4>
 	</host>
-	<host mac="c802.1042.845a">
-		<ipv4>10.0.0.32</ipv4>
+	<host mac="3019.66f1.a3d0">
+		<ipv4>10.0.0.33</ipv4>
+	</host>
+	<host mac="3872.c05e.b8a7">
+		<ipv4>10.0.0.138</ipv4>
+		<ipv6>2a00:1028:9940:5eb6::1</ipv6>
 	</host>
 </devices>

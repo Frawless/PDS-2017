@@ -177,6 +177,7 @@ void terminate(int signo)
  * Funkce pro vytvoření mapy dvojic pro MitM útok ze vstupního XML souboru.
  * @param a_node - kořen stromu načteného z XML
  * @param macMap - vytvořená mapa dvojic
+ * Zdroj: http://www.xmlsoft.org/examples/
  **/
 static void createMap(xmlNode * a_node, std::map<char*,char*> &macMap)
 {
@@ -228,6 +229,7 @@ void parseMap(std::map<char*,char*> &macMap){
  * Funkce pro zpracování vstupního XML souboru do stromu pro snadné vyhledávání.
  * @param filename - název souboru
  * @param macMap - mapa pro dvojice MAC-MAC
+ * Zdroj: http://www.xmlsoft.org/examples/
  */
 static void parseTree(const char *filename, std::map<char*,char*> &macMap) {
     xmlParserCtxtPtr ctxt; /* the parser context */
@@ -312,12 +314,12 @@ void resendPackets(std::map<char*,char*> macMap,INTERFACE_INFO* intInfo)
 				
 				//#################################################
 				// Výpis informační
-				cerr<<"Odchycen packet od oběti s MAC adresou: ";
-				printMAC(tmpMac);
-				cerr<<endl;
-				cerr<<"Přeposílám oběti s MAC adresou: ";
-				printMAC(tmpMac);
-				cerr<<endl;
+//				cerr<<"Odchycen packet od oběti s MAC adresou: ";
+//				printMAC(tmpMac);
+//				cerr<<endl;
+//				cerr<<"Přeposílám oběti s MAC adresou: ";
+//				printMAC(tmpMac);
+//				cerr<<endl;
 				//#################################################
 				
 				memcpy (ether_frame, tmpMac, ETH_ADDR_LEN * sizeof (uint8_t));
