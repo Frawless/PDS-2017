@@ -233,7 +233,13 @@ uint16_t checksum (uint16_t *addr, int len);
  */
 uint16_t icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_t *payload, int payloadlen);
 
-uint16_t icmp6_checksum2 (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, ICMPV6_OPT *payload, int payloadlen);
+/**
+ * Funkce pro výpočet checksumu u paketu ICMPv6
+ * @param iphdr - ip hlavička
+ * @param options - MAC adresa a typ 
+ * @return - checksum
+ */
+uint16_t na_checksum (struct ip6_hdr iphdr, ICMPV6_OPT *options);
 
 /**
  * Funkce pro alokování paměti pro u_char proměnné.

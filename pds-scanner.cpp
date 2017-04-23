@@ -94,7 +94,7 @@ void terminate(int signo)
     pcap_close(packetDesc);
 	cerr<<"Signo number: "<<signo<<endl;
 	cerr<<"Func: terminate exit(0)"<<endl;	
-    exit(0);
+    exit(signo);
 }
 
 /*
@@ -109,12 +109,6 @@ int main(int argc, char** argv) {
 	// Získání informací o rozhraní pro scan
 	getInterfaceInfo(intInfo,params.interface);
 	
-	printMAC(intInfo->interfaceMac);
-	printIP(intInfo->interfaceAdd);
-	printIP(intInfo->networkAddress);
-	printIP(intInfo->networkMask);
-	cerr<<"Počet hostů: "<<intInfo->hosts<<endl;
-
 	// Vyhodnocení chybového stavu
 	if(params.ErrParam != ERR_OK){
 		return (EXIT_FAILURE);
@@ -122,11 +116,10 @@ int main(int argc, char** argv) {
 	
 	//filtr pro ARP a ICMPv6 (scan)
 	//návázání spojení s daným interface
-	packetDesc = openInterface(params.interface, "(arp) or (icmp6)", 120000000);
+	packetDesc = openInterface(params.interface, "(arp) or (icmp6)", 5000000);
 	// Otevřený výstupního souboru
 	openFile(params.fileName);
 
-	
 	//ukončení aplikace
 	signal(SIGINT, terminate);
 	signal(SIGTERM, terminate);
@@ -136,6 +129,7 @@ int main(int argc, char** argv) {
 	scanNetwork(intInfo, packetDesc);
 	
 	free(intInfo);
+	pcap_close(packetDesc);
 	
 	return (EXIT_SUCCESS);
 }

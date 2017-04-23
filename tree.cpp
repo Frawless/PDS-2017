@@ -30,8 +30,6 @@ void insert(T_NODE_PTR* root,u_char* macAddr, u_char* ipv4) {
 
 	// Pokud uzel prázdný vkládám
 	if(*root == NULL) {
-		printf("Vložena IPv4-root\n");
-		std::cerr<<*root<<std::endl;
 		*root = tempNode;
 		(*root)->leftChild = NULL;
 		(*root)->rightChild = NULL;
@@ -73,7 +71,6 @@ void insert(T_NODE_PTR* root,u_char* macAddr, char* ipv6) {
    
 	//if tree is empty, create root node
 	if(*root == NULL) {
-		printf("Vložena IPv6-root\n");
 		*root = tempNode;
 		(*root)->leftChild = NULL;
 		(*root)->rightChild = NULL;		
@@ -124,7 +121,7 @@ void printTree(T_NODE_PTR root, std::ofstream& outputFile)
 {
 	int i;
 	if(root == NULL){
-		std::cerr<<"Nenalezeny žádné adresy!"<<std::endl;
+//		std::cerr<<"Nenalezeny žádné adresy!"<<std::endl;
 		return;
 	}
 	else{
@@ -138,7 +135,6 @@ void printTree(T_NODE_PTR root, std::ofstream& outputFile)
 			if(i % 2 != 0)
 				outputFile<<".";
 		}
-		std::cerr<<"MAC ok!"<<std::endl;
 		sprintf(tmp,"%02x", root->macAddr[5]);
 		outputFile << tmp<<"\">\n";
 		// Výpis IPv4
@@ -154,7 +150,6 @@ void printTree(T_NODE_PTR root, std::ofstream& outputFile)
 			sprintf(tmp,"%d", root->ipv4[3]);
 			outputFile << tmp <<"</ipv4>\n";	
 		}
-		std::cerr<<"IPv4 ok!"<<std::endl;
 		// Výpisy uložených IPv6
 		if(root->ip6a[0] != '#')
 		{
@@ -210,38 +205,4 @@ void dispose (T_NODE_PTR *root) {
     }
     return ;
 }
-
-
-//na search to spadne někde asi
-//T_NODE_PTR search(T_NODE_PTR root, u_char* macAddr) {
-////   struct T_NODE_PTR current = root;
-//   T_NODE_PTR tmp;
-////   T_NODE_PTR *current = (*root);
-////   printf("Visiting elements of MAC: ");
-////   printMAC(macAddr);
-////   printf("\n");
-//   
-//   u_char *tmpMac = macAddr;
-////   memcpy(tmpMac, macAddr, IP_ADDR_LEN * (sizeof(u_char)));
-//
-//	if((root) != NULL)
-//	{
-//		if((root)->macAddr != NULL){
-//			if((root)->macAddr != macAddr)
-//			{
-//				 if((tmp = search((((root)->leftChild)), tmpMac)) != NULL){
-//					std::cerr<<tmp<<std::endl;	
-//					return ((tmp));
-//				 }
-//				 else
-//					return search((((root)->rightChild)), tmpMac);	   
-//			}
-//
-//		}
-//		else
-//			return (root);	   
-//	}
-//	else
-//		return (root);
-//}
 

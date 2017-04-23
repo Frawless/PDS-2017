@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<devices>
+	<host mac="f4b7.e292.1c41">
+		<ipv4>10.0.0.42</ipv4>
+		<ipv6>2a00:1028:9940:5eb6:a866:a7f2:2a31:dcd8</ipv6>
+	</host>
+	<host mac="0800.27b0.953c" group="victim-pair-1">
+		<ipv4>10.0.0.51</ipv4>
+		<ipv6>2a00:1028:9940:5eb6:6d3f:4420:a8fd:2b0e</ipv6>
+	</host>
+	<host mac="0800.2721.9d74" group="victim-pair-1">
+		<ipv4>10.0.0.50</ipv4>
+		<ipv6>2a00:1028:9940:5eb6:618e:da5f:4f5b:1fb1</ipv6>
+	</host>
+	<host mac="3872.c05e.b8a7">
+		<ipv6>2a00:1028:9940:5eb6::1</ipv6>
+	</host>
+	<host mac="2016.d88b.ff90">
+		<ipv4>10.0.0.37</ipv4>
+	</host>
+	<host mac="0cee.e68a.7041">
+		<ipv4>10.0.0.45</ipv4>
+	</host>
+	<host mac="3019.66f1.a3d0">
+		<ipv4>10.0.0.33</ipv4>
+	</host>
+	<host mac="940c.6da0.045a">
+		<ipv4>10.0.0.34</ipv4>
+		<ipv6>2a00:1028:9940:5eb6:d4b:778e:8d04:6c35</ipv6>
+	</host>
+	<host mac="74e2.8c5c.0184">
+		<ipv4>10.0.0.35</ipv4>
+	</host>
+	<host mac="4886.e8bf.7194">
+		<ipv4>10.0.0.43</ipv4>
+	</host>
+	<host mac="78e4.006f.4e1b">
+		<ipv4>10.0.0.46</ipv4>
+		<ipv6>2a00:1028:9940:5eb6:8d5c:460f:4fd0:24ca</ipv6>
+	</host>
+	<host mac="c802.1042.845a">
+		<ipv4>10.0.0.32</ipv4>
+	</host>
+</devices>

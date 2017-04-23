@@ -76,10 +76,10 @@ int isValidMacAddress(const char* mac) {
 
     while (*mac) {
        if (isxdigit(*mac)) {
-          i++;
+			i++;
        }
-       else if (*mac == ':' || *mac == '-') {
-			if (i == 0 || i / 2 - 1 != s)
+       else if (*mac == '.') {
+			if (i == 0 || i % 4 != 0)
 				break;
           ++s;
        }
@@ -88,7 +88,8 @@ int isValidMacAddress(const char* mac) {
        }
        ++mac;
     }
-    return (i == 12 && (s == 5 || s == 0));
+//	cerr<<"Hodnoty: "<<i<<":"<<s<<endl;
+    return (i == 12 && (s == 2 || s == 0));
 }
 
 /*
@@ -235,20 +236,9 @@ PARAMS getParams (int argc, char *argv[], PARAMS params)
  **/
 void terminate(int signo)
 {
-//    struct pcap_stat stats;
-		
 	int sockfd;
-//	ssize_t datalen = 0;
-//	uint8_t *src_mac, *dstMac, *ethFrame;
-//	struct addrinfo hints, *res;
-//	struct sockaddr_in *ipv4;
 	struct sockaddr_ll device;
 	
-	// Alokace paměti
-//	src_mac = allocate_ustrmem (ETH_ADDR_LEN);
-//	dstMac = allocate_ustrmem (ETH_ADDR_LEN);
-//	ethFrame = allocate_ustrmem (IP_MAXPACKET);
-		
 	memset (&device, 0, sizeof (device));
 	if ((device.sll_ifindex = if_nametoindex (interface)) == 0) {
 		perror ("if_nametoindex() failed to obtain interface index ");
@@ -257,9 +247,9 @@ void terminate(int signo)
 	
 	// Konverze char* na u_char pro MAC adresy
 	u_char victim1tmp[ETH_ADDR_LEN];
-	createMacAdress(victim1tmp,victim1mac);
+	createMacAdressFromXML(victim1tmp,(const xmlChar*)victim1mac);
 	u_char victim2tmp[ETH_ADDR_LEN];
-	createMacAdress(victim2tmp,victim2mac);
+	createMacAdressFromXML(victim2tmp,(const xmlChar*)victim2mac);
 	
 	// Vytvoření socketu
 	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
@@ -267,53 +257,36 @@ void terminate(int signo)
 		exit (EXIT_FAILURE);
 	}
 	
+	// Struktura pro informace k odeslání
 	device.sll_family = AF_PACKET;
 	memcpy (device.sll_addr, intMac, 6 * sizeof (uint8_t));
 	device.sll_halen = 6;
 
-	
 	// Vrácení zpátky ARP
 	if(strcmp(protocol,"arp") == 0)
 	{
-//		device.sll_family = AF_PACKET;
-//		memcpy (device.sll_addr, victim1tmp, 6 * sizeof (uint8_t));
-//		device.sll_halen = 6;		
-		
 		// Zasílání ARP paketů oběma obětem
 		usleep(1000000);
 		sendPacketARP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd, device,true);
-		
-		memcpy (device.sll_addr, victim1tmp, 6 * sizeof (uint8_t));
-		
 		sendPacketARP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd, device,true);
-		cerr<<"Původní stav tabulek nahozen!"<<endl;
+		cerr<<"Ukončuji "<<protocol<<" spoofing"<<endl;
 	}
 	else
 	{
-//		device.sll_family = AF_PACKET;
-//		memcpy (device.sll_addr, victim1tmp, 6 * sizeof (uint8_t));
-//		device.sll_halen = 6;	
-		
 		// Zasílání NDP paketů oběma obětem
 		usleep(1000000);
-//		sendPacketNDP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd,device,ND_NEIGHBOR_SOLICIT);
 		sendPacketNDP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd,device,ND_NEIGHBOR_ADVERT);	// Zvrácení účinku otrávení
-//		sendPacketNDP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd,device,ND_NEIGHBOR_SOLICIT);		
 		sendPacketNDP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd,device,ND_NEIGHBOR_ADVERT);	// Zvrácení účinku otrávení	
-		
-		
-//		sendPacketNDP(victim1tmp,victim1ip,victim2mac,victim2ip,sockfd,device,ND_NEIGHBOR_SOLICIT);
-//		sendPacketNDP(victim2tmp,victim2ip,victim1mac,victim1ip,sockfd,device,ND_NEIGHBOR_SOLICIT);
-		
+		cerr<<"Ukončuji "<<protocol<<" spoofing"<<endl;
 	}
 
 	close(sockfd);
 
     //zavření spojení
     pcap_close(packetDesc);
-	cerr<<"Signo number: "<<signo<<endl;
-	cerr<<"Func: terminate exit(0)"<<endl;	
-    exit(0);
+//	cerr<<"Signo number: "<<signo<<endl;
+//	cerr<<"Func: terminate exit(0)"<<endl;	
+    exit(signo);
 }
 
 /*
@@ -330,14 +303,7 @@ int main(int argc, char** argv) {
 	//filtr pro ARP a ICMPv6 (scan)
 	//návázání spojení s daným interface
 	packetDesc = openInterface(params.interface, "(arp) or (icmp6)",0);
-	
-//	cerr<<"MAC1: "<<params.victim1mac<<endl;
-//	cerr<<"MAC2: "<<params.victim2mac<<endl;
-//	cerr<<"IP1: "<<params.victim1ip<<endl;
-//	cerr<<"IP2: "<<params.victim2ip<<endl;
-//	cerr<<"time: "<<params.time<<endl;
-//	cerr<<"Protokol: "<<params.protocol<<endl;
-	
+		
 	// Globální proměnné pro správné ukončení
 	memcpy(victim1mac,params.victim1mac, 255);
 	memcpy(victim2mac,params.victim2mac, 255);
@@ -363,7 +329,7 @@ int main(int argc, char** argv) {
 	else if(strcmp("ndp",params.protocol) == 0)
 		poisonVictims(intInfo,params.time,params.victim1mac,params.victim2mac,params.victim1ip,params.victim2ip,false);
 	else
-		cerr<<"Nepodporovaný protokol"<<endl;
+		cerr<<"Zadán nepodporovaný protokol! Ukončuji se..."<<endl;
 	
 	return (EXIT_SUCCESS);
 }

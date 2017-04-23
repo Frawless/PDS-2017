@@ -70,14 +70,6 @@ void printTree(T_NODE_PTR root, std::ofstream& outputFile);
  */
 void dispose (T_NODE_PTR *root);
 
-//static void
-//exampleFunc(const char *filename);
-//
-//static void
-//print_element_names(xmlNode * a_node);
-
-
-//T_NODE_PTR search(T_NODE_PTR root, u_char* macAddr);   // Search - zatím netřeba
 
 #endif /* TREE_H */
 

